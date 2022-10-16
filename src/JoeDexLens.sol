@@ -264,7 +264,7 @@ contract JoeDexLens is Ownable {
             return (PRECISION * reserve1 * 10**decimals0) / (reserve0 * 10**decimals1);
         } else if (token == token1) {
             return (PRECISION * reserve0 * 10**decimals1) / (reserve1 * 10**decimals0);
-        }
+        } else revert JoeDexLens__WrongPair();
     }
 
     /// @notice TODO natspec
@@ -279,7 +279,7 @@ contract JoeDexLens is Ownable {
             return (priceScaled * PRECISION) >> bitShift;
         } else if (token == address(pair.tokenY())) {
             return ((type(uint256).max / priceScaled) * PRECISION) >> bitShift;
-        }
+        } else revert JoeDexLens__WrongPair();
     }
 
     /// @notice TODO natspec
