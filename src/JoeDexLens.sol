@@ -59,10 +59,10 @@ contract JoeDexLens is Ownable {
     mapping(address => AggregatorV3Interface) public aggregators;
 
     /// @notice Mapping from token address to markets, that are used to calculate this token's price in USD
-    mapping(address => Market[]) private whitelistedUSDPairs;
+    mapping(address => Market[]) private _whitelistedUSDPairs;
 
     /// @notice Mapping from token address to markets, that are used to calculate this token's price in USD
-    mapping(address => Market[]) private whitelistedAVAXPairs;
+    mapping(address => Market[]) private _whitelistedAVAXPairs;
 
     /** Constructor **/
 
@@ -83,53 +83,53 @@ contract JoeDexLens is Ownable {
     /// @notice Returns list of markets used to calculate price of token in USD
     /// TODO
     function getUSDMarkets(address token) external view returns (Market[] memory) {
-        return whitelistedUSDPairs[token];
+        return _whitelistedUSDPairs[token];
     }
 
     /// @notice Returns list of markets used to calculate price of token in AVAX
     /// TODO
     function getAVAXMarkets(address token) external view returns (Market[] memory) {
-        return whitelistedAVAXPairs[token];
+        return _whitelistedAVAXPairs[token];
     }
 
-    /// @notice Returns price of token in USD, scaled by PRECISION, calculated based on whitelistedUSDPairs and weighted by token reserves in these markets
+    /// @notice Returns price of token in USD, scaled by PRECISION, calculated based on _whitelistedUSDPairs and weighted by token reserves in these markets
     /// TODO
     function getTokenPriceUSD(address token) external view returns (uint256) {
-        Market[] memory markets = whitelistedUSDPairs[token];
+        Market[] memory markets = _whitelistedUSDPairs[token];
         if (markets.length == 0) revert JoeDexLens__NoUSDMarketDefined();
         uint256[] memory allPrices = new uint256[](markets.length);
 
         for (uint256 i; i < markets.length; i++) {
             if (markets[i].marketType == MarketType.V1) {
-                allPrices[i] = getPriceFromV1(markets[i].pairAddress, token);
+                allPrices[i] = _getPriceFromV1(markets[i].pairAddress, token);
             } else if (markets[i].marketType == MarketType.V2) {
-                allPrices[i] = getPriceFromV2(markets[i].pairAddress, token);
+                allPrices[i] = _getPriceFromV2(markets[i].pairAddress, token);
             } else if (markets[i].marketType == MarketType.CHAINLINK) {
-                allPrices[i] = getPriceFromChainlink(token);
+                allPrices[i] = _getPriceFromChainlink(token);
             }
         }
-        return calculateWeightedUSDAverage(allPrices, markets);
+        return _calculateWeightedUSDAverage(allPrices, markets);
     }
 
-    /// @notice Returns price of token in AVAX, scaled by PRECISION, calculated based on whitelistedAVAXPairs and weighted by token reserves in these markets
+    /// @notice Returns price of token in AVAX, scaled by PRECISION, calculated based on _whitelistedAVAXPairs and weighted by token reserves in these markets
     /// TODO
     function getTokenPriceAVAX(address token) external view returns (uint256) {
-        Market[] memory markets = whitelistedAVAXPairs[token];
+        Market[] memory markets = _whitelistedAVAXPairs[token];
         if (markets.length == 0) {
-            return getPriceInAVAXAnyToken(token);
+            return _getPriceInAVAXAnyToken(token);
         }
 
         uint256[] memory allPrices = new uint256[](markets.length);
         for (uint256 i; i < markets.length; i++) {
             if (markets[i].marketType == MarketType.V1) {
-                allPrices[i] = getPriceFromV1(markets[i].pairAddress, token);
+                allPrices[i] = _getPriceFromV1(markets[i].pairAddress, token);
             } else if (markets[i].marketType == MarketType.V2) {
-                allPrices[i] = getPriceFromV2(markets[i].pairAddress, token);
+                allPrices[i] = _getPriceFromV2(markets[i].pairAddress, token);
             } else if (markets[i].marketType == MarketType.CHAINLINK) {
-                allPrices[i] = getPriceFromChainlink(token);
+                allPrices[i] = _getPriceFromChainlink(token);
             }
         }
-        return calculateWeightedAVAXAverage(allPrices, markets);
+        return _calculateWeightedAVAXAverage(allPrices, markets);
     }
 
     /** External Functions **/
@@ -168,11 +168,11 @@ contract JoeDexLens is Ownable {
                 token = tokenX == USDC ? tokenY : tokenX;
             }
 
-            for (uint j; j < whitelistedUSDPairs[token].length; j++) {
-                if (whitelistedUSDPairs[token][j].pairAddress == markets[i].pairAddress)
+            for (uint j; j < _whitelistedUSDPairs[token].length; j++) {
+                if (_whitelistedUSDPairs[token][j].pairAddress == markets[i].pairAddress)
                     revert JoeDexLens__MarketAlreadyExists(markets[i].pairAddress);
             }
-            whitelistedUSDPairs[token].push(markets[i]);
+            _whitelistedUSDPairs[token].push(markets[i]);
             emit USDMarketAdded(token, markets[i]);
         }
     }
@@ -182,8 +182,8 @@ contract JoeDexLens is Ownable {
     function addAVAXMarkets(Market[] calldata markets) external onlyOwner {
         address token;
         for (uint256 i = 0; i < markets.length; i++) {
-            for (uint j; j < whitelistedAVAXPairs[token].length; j++) {
-                if (whitelistedAVAXPairs[token][j].pairAddress == markets[i].pairAddress)
+            for (uint j; j < _whitelistedAVAXPairs[token].length; j++) {
+                if (_whitelistedAVAXPairs[token][j].pairAddress == markets[i].pairAddress)
                     revert JoeDexLens__MarketAlreadyExists(markets[i].pairAddress);
             }
             if (markets[i].marketType == MarketType.V1) {
@@ -203,7 +203,7 @@ contract JoeDexLens is Ownable {
                 }
                 token = tokenX == WAVAX ? tokenY : tokenX;
             }
-            whitelistedAVAXPairs[token].push(markets[i]);
+            _whitelistedAVAXPairs[token].push(markets[i]);
             emit AVAXMarketAdded(token, markets[i]);
         }
     }
@@ -211,10 +211,10 @@ contract JoeDexLens is Ownable {
     /// @notice remove existing USD market for given token
     /// TODO
     function removeUSDMarket(address token, Market calldata market) external onlyOwner {
-        for (uint256 i; i < whitelistedUSDPairs[token].length; i++) {
-            if (whitelistedUSDPairs[token][i].pairAddress == market.pairAddress) {
-                whitelistedUSDPairs[token][i] = whitelistedUSDPairs[token][whitelistedUSDPairs[token].length - 1];
-                whitelistedUSDPairs[token].pop();
+        for (uint256 i; i < _whitelistedUSDPairs[token].length; i++) {
+            if (_whitelistedUSDPairs[token][i].pairAddress == market.pairAddress) {
+                _whitelistedUSDPairs[token][i] = _whitelistedUSDPairs[token][_whitelistedUSDPairs[token].length - 1];
+                _whitelistedUSDPairs[token].pop();
                 emit USDMarketRemoved(token, market);
                 return;
             }
@@ -225,10 +225,10 @@ contract JoeDexLens is Ownable {
     /// @notice remove existing AVAX market for given token
     /// TODO
     function removeAVAXMarket(address token, Market calldata market) external onlyOwner {
-        for (uint256 j; j < whitelistedAVAXPairs[token].length; j++) {
-            if (whitelistedAVAXPairs[token][j].pairAddress == market.pairAddress) {
-                whitelistedAVAXPairs[token][j] = whitelistedAVAXPairs[token][whitelistedAVAXPairs[token].length - 1];
-                whitelistedAVAXPairs[token].pop();
+        for (uint256 j; j < _whitelistedAVAXPairs[token].length; j++) {
+            if (_whitelistedAVAXPairs[token][j].pairAddress == market.pairAddress) {
+                _whitelistedAVAXPairs[token][j] = _whitelistedAVAXPairs[token][_whitelistedAVAXPairs[token].length - 1];
+                _whitelistedAVAXPairs[token].pop();
                 emit AVAXMarketRemoved(token, market);
                 return;
             }
@@ -241,7 +241,7 @@ contract JoeDexLens is Ownable {
     /// @notice Get price from ChainLink
     /// @param token token to get the price of
     /// @return The price with 18 decimals
-    function getPriceFromChainlink(address token) internal view returns (uint256) {
+    function _getPriceFromChainlink(address token) internal view returns (uint256) {
         AggregatorV3Interface aggregator = aggregators[token];
         (, int256 price, , , ) = aggregator.latestRoundData();
         require(price > 0, "invalid price");
@@ -252,7 +252,7 @@ contract JoeDexLens is Ownable {
 
     /// @notice TODO natspec
     /// @return price of token scaled by PRECISION denominated in other token from pairAddress
-    function getPriceFromV1(address pairAddress, address token) internal view returns (uint256) {
+    function _getPriceFromV1(address pairAddress, address token) internal view returns (uint256) {
         IJoePair pair = IJoePair(pairAddress);
         address token0 = pair.token0();
         address token1 = pair.token1();
@@ -269,7 +269,7 @@ contract JoeDexLens is Ownable {
 
     /// @notice TODO natspec
     /// @return price of token scaled by PRECISION denominated in other token from pairAddress
-    function getPriceFromV2(address pairAddress, address token) internal view returns (uint256) {
+    function _getPriceFromV2(address pairAddress, address token) internal view returns (uint256) {
         uint256 bitShift = 128;
         ILBPair pair = ILBPair(pairAddress);
         (, , uint256 activeID) = pair.getReservesAndId();
@@ -285,8 +285,8 @@ contract JoeDexLens is Ownable {
     /// @notice TODO natspec
     /// @return token price in AVAX scaled by PRECISION as average from AVAX-token&USDC-token
     /// weighted by reserves from Joe V1, when no markets added for given token
-    function getPriceInAVAXAnyToken(address token) internal view returns (uint256) {
-        uint256 AVAXPriceInUSD = getPriceFromChainlink(WAVAX);
+    function _getPriceInAVAXAnyToken(address token) internal view returns (uint256) {
+        uint256 AVAXPriceInUSD = _getPriceFromChainlink(WAVAX);
         address pairWavax = V1Factory.getPair(token, WAVAX);
         address pairUSDC = V1Factory.getPair(token, USDC);
         uint256 priceInUSDC;
@@ -295,15 +295,15 @@ contract JoeDexLens is Ownable {
         if (pairWavax == address(0) && pairUSDC == address(0)) {
             revert JoeDexLens__PairsNotCreated();
         } else if (pairWavax == address(0)) {
-            priceInUSDC = getPriceFromV1(pairUSDC, token);
+            priceInUSDC = _getPriceFromV1(pairUSDC, token);
             return priceInUSDC / AVAXPriceInUSD;
         } else if (pairUSDC == address(0)) {
-            return getPriceFromV1(WAVAX, token);
+            return _getPriceFromV1(WAVAX, token);
         } else {
-            priceInUSDC = getPriceFromV1(pairUSDC, token);
-            priceInAVAX = getPriceFromV1(pairWavax, token);
-            uint256 tokenReservesUSDCPair = getReservesFromV1(pairUSDC, token);
-            uint256 tokenReservesAVAXPair = getReservesFromV1(pairWavax, token);
+            priceInUSDC = _getPriceFromV1(pairUSDC, token);
+            priceInAVAX = _getPriceFromV1(pairWavax, token);
+            uint256 tokenReservesUSDCPair = _getReservesFromV1(pairUSDC, token);
+            uint256 tokenReservesAVAXPair = _getReservesFromV1(pairWavax, token);
             uint256 sumTokenReserves = tokenReservesUSDCPair + tokenReservesAVAXPair;
             uint256 weightedAvg = (((tokenReservesUSDCPair * priceInUSDC) / AVAXPriceInUSD) +
                 (tokenReservesAVAXPair * priceInAVAX)) / sumTokenReserves;
@@ -312,26 +312,26 @@ contract JoeDexLens is Ownable {
     }
 
     /// @notice TODO natspec
-    function calculateWeightedUSDAverage(uint256[] memory allPrices, Market[] memory markets)
+    function _calculateWeightedUSDAverage(uint256[] memory allPrices, Market[] memory markets)
         internal
         view
         returns (uint256)
     {
-        return calculateWeightedAverage(allPrices, markets, USDC);
+        return _calculateWeightedAverage(allPrices, markets, USDC);
     }
 
     /// @notice TODO natspec
-    function calculateWeightedAVAXAverage(uint256[] memory allPrices, Market[] memory markets)
+    function _calculateWeightedAVAXAverage(uint256[] memory allPrices, Market[] memory markets)
         internal
         view
         returns (uint256)
     {
-        return calculateWeightedAverage(allPrices, markets, WAVAX);
+        return _calculateWeightedAverage(allPrices, markets, WAVAX);
     }
 
     /// @notice Calculates weighted average based on reserves
     /// TODO
-    function calculateWeightedAverage(
+    function _calculateWeightedAverage(
         uint256[] memory allPrices,
         Market[] memory markets,
         address baseToken
@@ -341,9 +341,9 @@ contract JoeDexLens is Ownable {
         uint256 weightSum;
         for (uint256 i; i < allPrices.length; i++) {
             if (markets[i].marketType == MarketType.V1) {
-                weight = getReservesFromV1(markets[i].pairAddress, baseToken);
+                weight = _getReservesFromV1(markets[i].pairAddress, baseToken);
             } else if (markets[i].marketType == MarketType.V2) {
-                weight = getReservesFromV2(markets[i].pairAddress, baseToken);
+                weight = _getReservesFromV2(markets[i].pairAddress, baseToken);
             }
             priceSum += allPrices[i] * weight;
             weightSum += weight;
@@ -354,7 +354,7 @@ contract JoeDexLens is Ownable {
 
     /// @notice calculate underlying reserves denominated in baseToken (USDC/WAVAX) from Joe V1
     /// TODO
-    function getReservesFromV1(address pairAddress, address baseToken) internal view returns (uint256) {
+    function _getReservesFromV1(address pairAddress, address baseToken) internal view returns (uint256) {
         IJoePair pair = IJoePair(pairAddress);
         uint256 reserves;
         if (pair.token0() == baseToken) {
@@ -371,7 +371,7 @@ contract JoeDexLens is Ownable {
     /// @notice calculate underlying reserves denominated in baseToken (USDC/WAVAX) from Joe V2,
     /// including bins around active bin in binsRange
     /// TODO
-    function getReservesFromV2(address pairAddress, address baseToken) internal view returns (uint256) {
+    function _getReservesFromV2(address pairAddress, address baseToken) internal view returns (uint256) {
         uint256 binsRange = 5;
         ILBPair pair = ILBPair(pairAddress);
         uint256 liquidity;
