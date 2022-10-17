@@ -11,7 +11,7 @@ import "./interfaces/ILBPair.sol";
 import "./interfaces/IJoePair.sol";
 import "./interfaces/IJoeFactory.sol";
 
-import "openzeppelin/token/ERC20/ERC20.sol";
+import "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import "openzeppelin/access/Ownable.sol";
 
 error JoeDexLens__PairsNotCreated();
@@ -256,8 +256,8 @@ contract JoeDexLens is Ownable {
         IJoePair pair = IJoePair(pairAddress);
         address token0 = pair.token0();
         address token1 = pair.token1();
-        uint256 decimals0 = ERC20(token0).decimals();
-        uint256 decimals1 = ERC20(token1).decimals();
+        uint256 decimals0 = IERC20Metadata(token0).decimals();
+        uint256 decimals1 = IERC20Metadata(token1).decimals();
         (uint256 reserve0, uint256 reserve1, ) = pair.getReserves();
 
         if (token == token0) {
@@ -275,10 +275,18 @@ contract JoeDexLens is Ownable {
         (, , uint256 activeID) = pair.getReservesAndId();
         uint256 priceScaled = V2Router.getPriceFromId(pair, uint24(activeID));
 
-        if (token == address(pair.tokenX())) {
-            return (priceScaled * PRECISION) >> bitShift;
-        } else if (token == address(pair.tokenY())) {
-            return ((type(uint256).max / priceScaled) * PRECISION) >> bitShift;
+        address tokenX = address(pair.tokenX());
+        address tokenY = address(pair.tokenY());
+
+        uint256 decimalsX = IERC20Metadata(tokenX).decimals();
+        uint256 decimalsY = IERC20Metadata(tokenY).decimals();
+
+        if (token == tokenX) {
+            return (priceScaled * 10**(18 + decimalsX - decimalsY)) >> bitShift;
+        } else if (token == tokenY) {
+            if (decimalsX > decimalsY)
+                return ((type(uint256).max / (priceScaled * 10**(decimalsX - decimalsY))) * PRECISION) >> bitShift;
+            else return ((type(uint256).max / (priceScaled / 10**(decimalsY - decimalsX))) * PRECISION) >> bitShift;
         } else revert JoeDexLens__WrongPair();
     }
 

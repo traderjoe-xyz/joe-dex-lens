@@ -29,6 +29,9 @@ contract TestV2Prices is
     uint16 internal constant DEFAULT_BIN_STEP = 20;
     uint24 internal constant ID_ONE = 2**23;
 
+    uint24 SHIFT_ID_ONE_1e4 = 4_609; // The result of `log( 1e10/1e6 )/ log(1.002)`, when 1 token6D is equal to 1 token10D
+    uint24 SHIFT_ID_ONE_1e18 = 20_743; // The result of `log( 1e24/1e6 )/ log(1.002)`, when 1 token6D is equal to 1 token24D
+
     function setUp() public {
         vm.createSelectFork(vm.rpcUrl("fuji"), 14_541_000);
         token6D = new ERC20MockDecimals(6);
@@ -49,27 +52,35 @@ contract TestV2Prices is
     }
 
     function testV2PriceDecimals() public {
-        ILBPair pair610 = V2Router.createLBPair(token6D, token10D, ID_ONE, DEFAULT_BIN_STEP);
-        ILBPair pair624 = V2Router.createLBPair(token6D, token24D, ID_ONE, DEFAULT_BIN_STEP);
+        ILBPair pair610 = V2Router.createLBPair(token6D, token10D, ID_ONE + SHIFT_ID_ONE_1e4, DEFAULT_BIN_STEP);
+        ILBPair pair624 = V2Router.createLBPair(token6D, token24D, ID_ONE + SHIFT_ID_ONE_1e18, DEFAULT_BIN_STEP);
         uint256 price6din10d = _getPriceFromV2(address(pair610), address(token6D));
         uint256 price10dIn6d = _getPriceFromV2(address(pair610), address(token10D));
 
-        assertEq(price6din10d, price10dIn6d + 1);
+        // uint256(DEFAULT_BIN_STEP) * 1e14 = 0.2%
+        assertApproxEqAbs(price6din10d, 1e18, uint256(DEFAULT_BIN_STEP) * 1e14);
+        assertApproxEqAbs(price10dIn6d, 1e18, uint256(DEFAULT_BIN_STEP) * 1e14);
+
         uint256 price6dIn24d = _getPriceFromV2(address(pair624), address(token6D));
         uint256 price24dIn6d = _getPriceFromV2(address(pair624), address(token24D));
 
-        assertEq(price6dIn24d, price24dIn6d + 1);
+        assertApproxEqAbs(price6dIn24d, 1e18, uint256(DEFAULT_BIN_STEP) * 1e14);
+        assertApproxEqAbs(price24dIn6d, 1e18, uint256(DEFAULT_BIN_STEP) * 1e14);
     }
 
     function testV2PriceDecimalsReverse() public {
-        ILBPair pair610 = V2Router.createLBPair(token10D, token6D, ID_ONE, DEFAULT_BIN_STEP);
-        ILBPair pair624 = V2Router.createLBPair(token24D, token6D, ID_ONE, DEFAULT_BIN_STEP);
+        ILBPair pair610 = V2Router.createLBPair(token10D, token6D, ID_ONE - SHIFT_ID_ONE_1e4, DEFAULT_BIN_STEP);
+        ILBPair pair624 = V2Router.createLBPair(token24D, token6D, ID_ONE - SHIFT_ID_ONE_1e18, DEFAULT_BIN_STEP);
         uint256 price6din10d = _getPriceFromV2(address(pair610), address(token6D));
         uint256 price10dIn6d = _getPriceFromV2(address(pair610), address(token10D));
-        assertEq(price6din10d + 1, price10dIn6d);
+
+        assertApproxEqAbs(price6din10d, 1e18, uint256(DEFAULT_BIN_STEP) * 1e14);
+        assertApproxEqAbs(price10dIn6d, 1e18, uint256(DEFAULT_BIN_STEP) * 1e14);
 
         uint256 price6dIn24d = _getPriceFromV2(address(pair624), address(token6D));
         uint256 price24dIn6d = _getPriceFromV2(address(pair624), address(token24D));
-        assertEq(price6dIn24d + 1, price24dIn6d);
+
+        assertApproxEqAbs(price6dIn24d, 1e18, uint256(DEFAULT_BIN_STEP) * 1e14);
+        assertApproxEqAbs(price24dIn6d, 1e18, uint256(DEFAULT_BIN_STEP) * 1e14);
     }
 }
