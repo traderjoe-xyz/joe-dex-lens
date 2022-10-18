@@ -75,7 +75,7 @@ contract TestJoeDexLens2 is TestHelper {
         path[1] = WAVAX;
         console2.log("getPriceFromV1", getPriceFromV1(AVAXUSDCv1, USDC));
         vm.prank(TokenOwner);
-        tokenAmount = 4e18;
+        tokenAmount = 150_000e6;
         tokenUSDC.mint(DEV, tokenAmount);
         tokenUSDC.approve(RouterV1, tokenAmount);
         IJoeRouter01(RouterV1).swapExactTokensForTokens(tokenAmount, 0, path, DEV, block.timestamp);
@@ -92,8 +92,8 @@ contract TestJoeDexLens2 is TestHelper {
         IJoePair pair = IJoePair(pairAddress);
         address token0 = pair.token0();
         address token1 = pair.token1();
-        uint256 decimals0 = ERC20(token0).decimals();
-        uint256 decimals1 = ERC20(token1).decimals();
+        uint256 decimals0 = IERC20Metadata(token0).decimals();
+        uint256 decimals1 = IERC20Metadata(token1).decimals();
 
         (uint256 reserve0, uint256 reserve1, ) = pair.getReserves();
         if (token == token0) {
