@@ -11,9 +11,11 @@ import "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 
 import "./interfaces/IJoeDexLens.sol";
 
-/**
- * @notice TODO natspec
- */
+/// @title Joe Dex Lens
+/// @author Trader Joe
+/// @notice This contract allows to price tokens in either AVAX or USDC. It could be easily extended to any collateral.
+/// Owners can add or remove data feeds to price a token and can set the weight of the different data feeds.
+/// When no data feed is provided, the contract will use the TOKAN/WAVAX and TOKEN/USDC V1 pool to try to price the asset
 contract JoeDexLens is PendingOwnable, IJoeDexLens {
     using Math512Bits for uint256;
 

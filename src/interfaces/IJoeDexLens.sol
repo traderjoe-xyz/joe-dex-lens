@@ -9,9 +9,9 @@ import "joe-v2/interfaces/IPendingOwnable.sol";
 import "../JoeDexLensErrors.sol";
 import "../interfaces/AggregatorV3Interface.sol";
 
-/**
- * @notice TODO natspec
- */
+/// @title Interface of the Joe Dex Lens contract
+/// @author Trader Joe
+/// @notice The interface needed to interract with the Joe Dex Lens contract
 interface IJoeDexLens is IPendingOwnable {
     /// @notice Enumerators of the different data feed types
     enum dfType {
