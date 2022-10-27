@@ -34,7 +34,7 @@ interface IJoeDexLens is IPendingOwnable {
 
     event DataFeedAdded(address collateral, address token, DataFeed dataFeed);
 
-    event DataFeedWeightSet(address collateral, address token, address dfAddress, uint256 weight);
+    event DataFeedsWeightset(address collateral, address token, address dfAddress, uint256 weight);
 
     event DataFeedRemoved(address collateral, address token, address dfAddress);
 
@@ -50,9 +50,9 @@ interface IJoeDexLens is IPendingOwnable {
 
     function getTokenPriceAVAX(address token) external view returns (uint256 price);
 
-    function getTokenPricesUSD(address[] calldata tokens) external view returns (uint256[] memory prices);
+    function getTokensPricesUSD(address[] calldata tokens) external view returns (uint256[] memory prices);
 
-    function getTokenPricesAVAX(address[] calldata tokens) external view returns (uint256[] memory prices);
+    function getTokensPricesAVAX(address[] calldata tokens) external view returns (uint256[] memory prices);
 
     function addUSDDataFeed(address token, DataFeed calldata dataFeed) external;
 
@@ -78,13 +78,13 @@ interface IJoeDexLens is IPendingOwnable {
 
     function addAVAXDataFeeds(address[] calldata tokens, DataFeed[] calldata dataFeeds) external;
 
-    function setUSDDataFeedWeights(
+    function setUSDDataFeedsWeights(
         address[] calldata _tokens,
         address[] calldata _dfAddresses,
         uint88[] calldata _newWeights
     ) external;
 
-    function setAVAXDataFeedWeights(
+    function setAVAXDataFeedsWeights(
         address[] calldata _tokens,
         address[] calldata _dfAddresses,
         uint88[] calldata _newWeights

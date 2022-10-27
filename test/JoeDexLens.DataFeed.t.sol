@@ -60,7 +60,7 @@ contract TestJoeDexLens is TestHelper {
         address[] memory dfAddressSingleton = getAddressSingleton(df.dfAddress);
         uint88[] memory uint8Singleton = getUint88Singleton(20);
 
-        joeDexLens.setUSDDataFeedWeights(wavaxSingleton, dfAddressSingleton, uint8Singleton);
+        joeDexLens.setUSDDataFeedsWeights(wavaxSingleton, dfAddressSingleton, uint8Singleton);
 
         IJoeDexLens.DataFeed[] memory WAVAXDataFeeds2 = joeDexLens.getUSDDataFeeds(WAVAX);
         assertEq(WAVAXDataFeeds2[0].dfWeight, 20);
@@ -82,7 +82,7 @@ contract TestJoeDexLens is TestHelper {
         address[] memory dfAddressSingleton = getAddressSingleton(df.dfAddress);
         uint88[] memory uint8Singleton = getUint88Singleton(10);
 
-        joeDexLens.setAVAXDataFeedWeights(usdcSingleton, dfAddressSingleton, uint8Singleton);
+        joeDexLens.setAVAXDataFeedsWeights(usdcSingleton, dfAddressSingleton, uint8Singleton);
 
         IJoeDexLens.DataFeed[] memory USDCDataFeeds2 = joeDexLens.getAVAXDataFeeds(USDC);
         assertEq(USDCDataFeeds2[0].dfWeight, 10);

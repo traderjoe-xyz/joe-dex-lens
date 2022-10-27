@@ -15,4 +15,4 @@ error JoeDexLens__LengthsMismatch();
 error JoeDexLens__NullWeight();
 error JoeDexLens__WrongPair();
 error JoeDexLens__InvalidChainLinkPrice();
-error JoeDesLens__NotEnoughLiquidity();
+error JoeDexLens__NotEnoughLiquidity();

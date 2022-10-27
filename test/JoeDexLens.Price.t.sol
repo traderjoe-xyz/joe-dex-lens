@@ -125,7 +125,7 @@ contract TestJoeDexLens2 is TestHelper {
         tokenUSDC.mint(DEV, tokenAmount);
         tokenUSDC.approve(routerV1, tokenAmount);
         IJoeRouter01(routerV1).swapExactTokensForTokens(tokenAmount, 0, path, DEV, block.timestamp);
-        //IJoeRouter01(routerV1).swapExactAVAXForTokens{value: tokenAmount}(0, path, DEV, block.timestamp);
+
         uint256 USDCPrice3 = joeDexLens.getTokenPriceAVAX(USDC);
         assertLt(USDCPrice3, USDCPrice2);
     }

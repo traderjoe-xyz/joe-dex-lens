@@ -26,8 +26,8 @@ contract TestJoeDexLens is TestHelper {
         joeDexLens.getAVAXDataFeeds(WAVAX);
         joeDexLens.getTokenPriceUSD(USDC);
         joeDexLens.getTokenPriceAVAX(WAVAX);
-        joeDexLens.getTokenPricesUSD(usdcSingleton);
-        joeDexLens.getTokenPricesAVAX(wavaxSingleton);
+        joeDexLens.getTokensPricesUSD(usdcSingleton);
+        joeDexLens.getTokensPricesAVAX(wavaxSingleton);
 
         // Should revert
         address address1 = address(1);
@@ -63,10 +63,10 @@ contract TestJoeDexLens is TestHelper {
         uint88[] memory uint8Singleton = getUint88Singleton(1);
 
         vm.expectRevert(PendingOwnable__NotOwner.selector);
-        joeDexLens.setUSDDataFeedWeights(usdcSingleton, usdcSingleton, uint8Singleton);
+        joeDexLens.setUSDDataFeedsWeights(usdcSingleton, usdcSingleton, uint8Singleton);
 
         vm.expectRevert(PendingOwnable__NotOwner.selector);
-        joeDexLens.setAVAXDataFeedWeights(wavaxSingleton, wavaxSingleton, uint8Singleton);
+        joeDexLens.setAVAXDataFeedsWeights(wavaxSingleton, wavaxSingleton, uint8Singleton);
 
         vm.expectRevert(PendingOwnable__NotOwner.selector);
         joeDexLens.removeUSDDataFeeds(usdcSingleton, usdcSingleton);

@@ -20,7 +20,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     using Math512Bits for uint256;
 
     uint256 constant DECIMALS = 18;
-    uint256 immutable PRECISION = 10**DECIMALS;
+    uint256 constant PRECISION = 10**DECIMALS;
 
     ILBRouter private immutable _ROUTER_V2;
     IJoeFactory private immutable _FACTORY_V1;
@@ -133,14 +133,14 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     /// @notice Returns the prices of each token in USD, scaled with 6 decimals
     /// @param _tokens The list of address of the tokens
     /// @return prices The prices of each token in USD, with 6 decimals
-    function getTokenPricesUSD(address[] calldata _tokens) external view override returns (uint256[] memory prices) {
+    function getTokensPricesUSD(address[] calldata _tokens) external view override returns (uint256[] memory prices) {
         return _getTokenWeightedAveragePrices(_USDC, _tokens);
     }
 
     /// @notice Returns the prices of each token in AVAX, scaled with `DECIMALS` decimals
     /// @param _tokens The list of address of the tokens
     /// @return prices The prices of each token in AVAX, with `DECIMALS` decimals
-    function getTokenPricesAVAX(address[] calldata _tokens) external view override returns (uint256[] memory prices) {
+    function getTokensPricesAVAX(address[] calldata _tokens) external view override returns (uint256[] memory prices) {
         return _getTokenWeightedAveragePrices(_WAVAX, _tokens);
     }
 
@@ -225,12 +225,12 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     /// @param _tokens The list of addresses of the tokens
     /// @param _dfAddresses The list of USD data feed addresses
     /// @param _newWeights The list of new weights of the data feeds
-    function setUSDDataFeedWeights(
+    function setUSDDataFeedsWeights(
         address[] calldata _tokens,
         address[] calldata _dfAddresses,
         uint88[] calldata _newWeights
     ) external override onlyOwner {
-        _setDataFeedWeights(_USDC, _tokens, _dfAddresses, _newWeights);
+        _setDataFeedsWeights(_USDC, _tokens, _dfAddresses, _newWeights);
     }
 
     /// @notice Batch set the AVAX weight for each (token, data feed)
@@ -238,12 +238,12 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     /// @param _tokens The list of addresses of the tokens
     /// @param _dfAddresses The list of AVAX data feed addresses
     /// @param _newWeights The list of new weights of the data feeds
-    function setAVAXDataFeedWeights(
+    function setAVAXDataFeedsWeights(
         address[] calldata _tokens,
         address[] calldata _dfAddresses,
         uint88[] calldata _newWeights
     ) external override onlyOwner {
-        _setDataFeedWeights(_WAVAX, _tokens, _dfAddresses, _newWeights);
+        _setDataFeedsWeights(_WAVAX, _tokens, _dfAddresses, _newWeights);
     }
 
     /// @notice Batch remove a list of USD data feeds for each (token, data feed)
@@ -412,7 +412,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
 
         set.dataFeeds[index - 1].dfWeight = _newWeight;
 
-        emit DataFeedWeightSet(_collateral, _token, _dfAddress, _newWeight);
+        emit DataFeedsWeightset(_collateral, _token, _dfAddress, _newWeight);
     }
 
     /// @notice Batch set the weight for each (_collateral, token, data feed)
@@ -420,7 +420,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     /// @param _tokens The list of addresses of the tokens
     /// @param _dfAddresses The list of USD data feed addresses
     /// @param _newWeights The list of new weights of the data feeds
-    function _setDataFeedWeights(
+    function _setDataFeedsWeights(
         address _collateral,
         address[] calldata _tokens,
         address[] calldata _dfAddresses,
@@ -639,7 +639,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
             uint256 weightedPriceAVAX = (priceInAVAX * priceOfAVAX * weightWAVAX) / PRECISION;
             if (weightedPriceAVAX != 0) totalWeights += weightWAVAX;
 
-            if (totalWeights == 0) revert JoeDesLens__NotEnoughLiquidity();
+            if (totalWeights == 0) revert JoeDexLens__NotEnoughLiquidity();
 
             return (weightedPriceUSDC + weightedPriceAVAX) / totalWeights;
         } else if (pairTokenWavax != address(0)) {

@@ -16,7 +16,7 @@ should be used.
 
 Weighted price based on reserves will be calculated. 
 
-If no markets for given token added, AVAX-token and USDC-token from Joe V1 will be used to return AVAX price. 
+If no markets for a given token was added, AVAX-token and USDC-token from Joe V1 will be used to return the token's price. 
 
 
 
