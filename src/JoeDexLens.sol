@@ -421,7 +421,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
 
         set.dataFeeds[index - 1].dfWeight = _newWeight;
 
-        emit DataFeedsWeightset(_collateral, _token, _dfAddress, _newWeight);
+        emit DataFeedsWeightSet(_collateral, _token, _dfAddress, _newWeight);
     }
 
     /// @notice Batch set the weight for each (_collateral, token, data feed)

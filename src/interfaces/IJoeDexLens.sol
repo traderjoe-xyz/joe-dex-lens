@@ -34,7 +34,7 @@ interface IJoeDexLens is IPendingOwnable {
 
     event DataFeedAdded(address collateral, address token, DataFeed dataFeed);
 
-    event DataFeedsWeightset(address collateral, address token, address dfAddress, uint256 weight);
+    event DataFeedsWeightSet(address collateral, address token, address dfAddress, uint256 weight);
 
     event DataFeedRemoved(address collateral, address token, address dfAddress);
 
