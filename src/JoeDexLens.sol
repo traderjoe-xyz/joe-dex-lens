@@ -15,7 +15,7 @@ import "./interfaces/IJoeDexLens.sol";
 /// @author Trader Joe
 /// @notice This contract allows to price tokens in either Native or USDC. It could be easily extended to any collateral.
 /// Owners can add or remove data feeds to price a token and can set the weight of the different data feeds.
-/// When no data feed is provided, the contract will use the TOKAN/WNative and TOKEN/USDC V1 pool to try to price the asset
+/// When no data feed is provided, the contract will use the TOKEN/WNative and TOKEN/USDC V1 pool to try to price the asset
 contract JoeDexLens is PendingOwnable, IJoeDexLens {
     using Math512Bits for uint256;
 
@@ -47,7 +47,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     /// @notice Verify a data feed
     /// @dev Revert if :
     /// - The _collateral and the _token are the same address
-    /// - The _collateral is not one of the two tokens of the pair (if thee dfType is V1 or V2)
+    /// - The _collateral is not one of the two tokens of the pair (if the dfType is V1 or V2)
     /// - The _token is not one of the two tokens of the pair (if the dfType is V1 or V2)
     /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
@@ -183,7 +183,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     /// @notice Set the Native weight for a specific data feed of a token
     /// @dev Can only be called by the owner
     /// @param _token The address of the token
-    /// @param _dfAddress The Native data feed address
+    /// @param _dfAddress The data feed address
     /// @param _newWeight The new weight of the data feed
     function setNativeDataFeedWeight(
         address _token,
@@ -204,7 +204,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     /// @notice Remove a Native data feed of a token
     /// @dev Can only be called by the owner
     /// @param _token The address of the token
-    /// @param _dfAddress The Native data feed address
+    /// @param _dfAddress The data feed address
     function removeNativeDataFeed(address _token, address _dfAddress) external override onlyOwner {
         _removeDataFeed(_WNATIVE, _token, _dfAddress);
     }
@@ -305,8 +305,8 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     /// @notice Returns if a (tokens)'s set contains the data feed address
     /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
-    /// @param _dfAddress The Native data feed address
-    /// @return Wether the set contains the data feed address (true) or not (false)
+    /// @param _dfAddress The data feed address
+    /// @return Whether the set contains the data feed address (true) or not (false)
     function _dataFeedContains(
         address _collateral,
         address _token,
@@ -319,7 +319,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
     /// @param _dataFeed The data feeds information
-    /// @return Wether the data feed was added (true) to the set or not (false)
+    /// @return Whether the data feed was added (true) to the set or not (false)
     function _addToSet(
         address _collateral,
         address _token,
@@ -339,8 +339,8 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     /// @notice Remove a data feed from a set, returns true if it was removed, false if not
     /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
-    /// @param _dfAddress The Native data feed address
-    /// @return Wether the data feed was removed (true) from the set or not (false)
+    /// @param _dfAddress The data feed address
+    /// @return Whether the data feed was removed (true) from the set or not (false)
     function _removeFromSet(
         address _collateral,
         address _token,
@@ -405,7 +405,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     /// @notice Set the weight for a specific data feed of a (collateral, token)
     /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
-    /// @param _dfAddress The Native data feed address
+    /// @param _dfAddress The data feed address
     /// @param _newWeight The new weight of the data feed
     function _setDataFeedWeight(
         address _collateral,
@@ -447,7 +447,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     /// @notice Remove a data feed from a set, revert if it couldn't remove it
     /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
-    /// @param _dfAddress The Native data feed address
+    /// @param _dfAddress The data feed address
     function _removeDataFeed(
         address _collateral,
         address _token,
@@ -481,7 +481,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     /// @dev If no data feed was provided, will use V1 TOKEN/Native and USDC/TOKEN pools to calculate the price of the token
     /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
-    /// @return price The weighted average price of the token
+    /// @return price The weighted average price of the token, with the collateral's decimals
     function _getTokenWeightedAveragePrice(address _collateral, address _token) private view returns (uint256 price) {
         uint256 decimals = IERC20Metadata(_collateral).decimals();
         if (_collateral == _token) return 10**decimals;
@@ -512,6 +512,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
 
         price /= totalWeights;
 
+        // Return the price with the collateral's decimals
         if (decimals < DECIMALS) price /= 10**(DECIMALS - decimals);
         else if (decimals > DECIMALS) price *= 10**(decimals - DECIMALS);
     }
@@ -520,7 +521,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     /// @dev If no data feed was provided, will use V1 TOKEN/Native and USDC/TOKEN pools to calculate the price of the token
     /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _tokens The list of addresses of the tokens
-    /// @return prices The list of weighted average price of each token
+    /// @return prices The list of weighted average price of each token, with the collateral's decimals
     function _getTokenWeightedAveragePrices(address _collateral, address[] calldata _tokens)
         private
         view
@@ -570,6 +571,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
 
         (uint256 reserve0, uint256 reserve1, ) = pair.getReserves();
 
+        // Return the price with `DECIMALS` decimals
         if (_token == token0) {
             return (reserve1 * 10**(decimals0 + DECIMALS)) / (reserve0 * 10**decimals1);
         } else if (_token == token1) {
@@ -594,6 +596,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         uint256 decimalsX = IERC20Metadata(tokenX).decimals();
         uint256 decimalsY = IERC20Metadata(tokenY).decimals();
 
+        // Return the price with `DECIMALS` decimals
         if (_token == tokenX) {
             return priceScaled.mulShiftRoundDown(10**(18 + decimalsX - decimalsY), Constants.SCALE_OFFSET);
         } else if (_token == tokenY) {
@@ -628,7 +631,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     /// @dev If only one pair is available, will return the price on this pair, and will revert if no pools were created
     /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
-    /// @return price The weighted average, based on pair's liquidity, of the token with `DECIMALS` decimals
+    /// @return price The weighted average, based on pair's liquidity, of the token with the collateral's decimals
     function _getPriceAnyToken(address _collateral, address _token) private view returns (uint256 price) {
         address pairTokenWNative = _FACTORY_V1.getPair(_token, _WNATIVE);
         address pairTokenUsdc = _FACTORY_V1.getPair(_token, _USDC);
@@ -668,7 +671,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     /// @param _pairAddress The address of the V1 pair
     /// @param _tokenBase The address of the base token of the pair, i.e. the collateral one
     /// @param _token The address of the token
-    /// @return priceInCollateral The price of the token in collateral
+    /// @return priceInCollateral The price of the token in collateral, with the collateral's decimals
     function _getPriceInCollateralFromV1(
         address _collateral,
         address _pairAddress,
@@ -678,6 +681,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         uint256 priceInBase = _getPriceFromV1(_pairAddress, _token);
         uint256 priceOfBase = _getTokenWeightedAveragePrice(_collateral, _tokenBase);
 
+        // Return the price with the collateral's decimals
         return (priceInBase * priceOfBase) / PRECISION;
     }
 
