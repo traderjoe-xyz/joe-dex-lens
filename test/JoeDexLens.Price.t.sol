@@ -138,20 +138,4 @@ contract TestJoeDexLens2 is TestHelper {
         uint256 USDCPrice3 = joeDexLens.getTokenPriceNative(USDC);
         assertLt(USDCPrice3, USDCPrice2);
     }
-
-    function getPriceFromV1(address pairAddress, address token) internal view returns (uint256) {
-        uint256 PRECISION = 1e18;
-        IJoePair pair = IJoePair(pairAddress);
-        address token0 = pair.token0();
-        address token1 = pair.token1();
-        uint256 decimals0 = IERC20Metadata(token0).decimals();
-        uint256 decimals1 = IERC20Metadata(token1).decimals();
-
-        (uint256 reserve0, uint256 reserve1, ) = pair.getReserves();
-        if (token == token0) {
-            return (PRECISION * reserve1 * 10**decimals0) / (reserve0 * 10**decimals1);
-        } else if (token == token1) {
-            return (PRECISION * reserve0 * 10**decimals1) / (reserve1 * 10**decimals0);
-        } else revert("getPriceFromV1 failed");
-    }
 }
