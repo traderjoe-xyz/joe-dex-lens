@@ -20,13 +20,18 @@ interface IJoeDexLens is IPendingOwnable {
         CHAINLINK
     }
 
-    /// @notice Structure for data feeds, contains the data feed's address and its type
+    /// @notice Structure for data feeds, contains the data feed's address and its type.
+    /// For V1/V2, the`dfAddress` should be the address of the pair
+    /// For chainlink, the `dfAddress` should be the address of the aggregator
     struct DataFeed {
         address dfAddress;
         uint88 dfWeight;
         dfType dfType;
     }
 
+    /// @notice Structure for a set of data feeds
+    /// `datafeeds` is the list of addresses of all the data feeds
+    /// `indexes` is a mapping linking the address of a data feed to its index in the `datafeeds` list.
     struct DataFeedSet {
         DataFeed[] dataFeeds;
         mapping(address => uint256) indexes;

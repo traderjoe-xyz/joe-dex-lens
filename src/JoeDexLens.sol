@@ -69,6 +69,9 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         _;
     }
 
+    /// @notice Verify the weight for a data feed
+    /// @dev Revert if the weight is equal to 0
+    /// @param weight The weight of a data feed
     modifier verifyWeight(uint88 weight) {
         if (weight == 0) revert JoeDexLens__NullWeight();
         _;
