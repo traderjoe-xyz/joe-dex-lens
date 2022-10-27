@@ -11,11 +11,11 @@ contract TestChainlink is TestHelper {
 
     function setUp() public {
         address MockUSDC = address(new ERC20MockDecimals(6));
-        address MockWAVAX = address(new ERC20MockDecimals(18));
+        address MockWNative = address(new ERC20MockDecimals(18));
 
         token = address(new ERC20MockDecimals(18));
 
-        joeDexLens = new JoeDexLens(LBRouter, joeFactory, MockWAVAX, MockUSDC);
+        joeDexLens = new JoeDexLens(LBRouter, joeFactory, MockWNative, MockUSDC);
         aggregator = new MockAggregator();
     }
 
@@ -26,10 +26,10 @@ contract TestChainlink is TestHelper {
         assertEq(joeDexLens.getTokenPriceUSD(token), 1e6);
     }
 
-    function testChainlinkWavaxPrice() public {
+    function testChainlinkWNativePrice() public {
         IJoeDexLens.DataFeed memory df = IJoeDexLens.DataFeed(address(aggregator), 1, IJoeDexLens.dfType.CHAINLINK);
-        joeDexLens.addAVAXDataFeed(token, df);
+        joeDexLens.addNativeDataFeed(token, df);
 
-        assertEq(joeDexLens.getTokenPriceAVAX(token), 1e18);
+        assertEq(joeDexLens.getTokenPriceNative(token), 1e18);
     }
 }

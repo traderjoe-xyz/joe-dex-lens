@@ -13,9 +13,9 @@ import "./interfaces/IJoeDexLens.sol";
 
 /// @title Joe Dex Lens
 /// @author Trader Joe
-/// @notice This contract allows to price tokens in either AVAX or USDC. It could be easily extended to any collateral.
+/// @notice This contract allows to price tokens in either Native or USDC. It could be easily extended to any collateral.
 /// Owners can add or remove data feeds to price a token and can set the weight of the different data feeds.
-/// When no data feed is provided, the contract will use the TOKAN/WAVAX and TOKEN/USDC V1 pool to try to price the asset
+/// When no data feed is provided, the contract will use the TOKAN/WNative and TOKEN/USDC V1 pool to try to price the asset
 contract JoeDexLens is PendingOwnable, IJoeDexLens {
     using Math512Bits for uint256;
 
@@ -25,12 +25,12 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     ILBRouter private immutable _ROUTER_V2;
     IJoeFactory private immutable _FACTORY_V1;
 
-    address private immutable _WAVAX;
+    address private immutable _WNATIVE;
     address private immutable _USDC;
 
     /// @dev Mapping from a collateral token to a token to an enumerable set of data feeds used to get the price of the token in collateral
-    /// e.g. USDC => AVAX will return datafeeds to get the price of AVAX in USD
-    /// And AVAX => JOE will return datafeeds to get the price of JOE in AVAX
+    /// e.g. USDC => Native will return datafeeds to get the price of Native in USD
+    /// And Native => JOE will return datafeeds to get the price of JOE in Native
     mapping(address => mapping(address => DataFeedSet)) private _whitelistedDataFeeds;
 
     /** Modifiers **/
@@ -49,7 +49,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     /// - The _collateral and the _token are the same address
     /// - The _collateral is not one of the two tokens of the pair (if thee dfType is V1 or V2)
     /// - The _token is not one of the two tokens of the pair (if the dfType is V1 or V2)
-    /// @param _collateral The address of the collateral (USDC or WAVAX)
+    /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
     /// @param _dataFeed The data feeds information
     modifier verifyDataFeed(
@@ -79,12 +79,12 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     constructor(
         ILBRouter _routerV2,
         IJoeFactory _factoryV1,
-        address _wavax,
+        address _wNative,
         address _usdc
     ) {
         _ROUTER_V2 = _routerV2;
         _FACTORY_V1 = _factoryV1;
-        _WAVAX = _wavax;
+        _WNATIVE = _wNative;
         _USDC = _usdc;
     }
 
@@ -109,11 +109,11 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         return _whitelistedDataFeeds[_USDC][_token].dataFeeds;
     }
 
-    /// @notice Returns the list of data feeds used to calculate the price of the token in AVAX
+    /// @notice Returns the list of data feeds used to calculate the price of the token in Native
     /// @param _token The address of the token
-    /// @return dataFeeds The array of data feeds used to price `token` in AVAX
-    function getAVAXDataFeeds(address _token) external view override returns (DataFeed[] memory dataFeeds) {
-        return _whitelistedDataFeeds[_WAVAX][_token].dataFeeds;
+    /// @return dataFeeds The array of data feeds used to price `token` in Native
+    function getNativeDataFeeds(address _token) external view override returns (DataFeed[] memory dataFeeds) {
+        return _whitelistedDataFeeds[_WNATIVE][_token].dataFeeds;
     }
 
     /// @notice Returns the price of token in USD, scaled with 6 decimals
@@ -123,11 +123,11 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         return _getTokenWeightedAveragePrice(_USDC, _token);
     }
 
-    /// @notice Returns the price of token in AVAX, scaled with `DECIMALS` decimals
+    /// @notice Returns the price of token in Native, scaled with `DECIMALS` decimals
     /// @param _token The address of the token
-    /// @return price The price of the token in AVAX, with `DECIMALS` decimals
-    function getTokenPriceAVAX(address _token) external view override returns (uint256 price) {
-        return _getTokenWeightedAveragePrice(_WAVAX, _token);
+    /// @return price The price of the token in Native, with `DECIMALS` decimals
+    function getTokenPriceNative(address _token) external view override returns (uint256 price) {
+        return _getTokenWeightedAveragePrice(_WNATIVE, _token);
     }
 
     /// @notice Returns the prices of each token in USD, scaled with 6 decimals
@@ -137,11 +137,16 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         return _getTokenWeightedAveragePrices(_USDC, _tokens);
     }
 
-    /// @notice Returns the prices of each token in AVAX, scaled with `DECIMALS` decimals
+    /// @notice Returns the prices of each token in Native, scaled with `DECIMALS` decimals
     /// @param _tokens The list of address of the tokens
-    /// @return prices The prices of each token in AVAX, with `DECIMALS` decimals
-    function getTokensPricesAVAX(address[] calldata _tokens) external view override returns (uint256[] memory prices) {
-        return _getTokenWeightedAveragePrices(_WAVAX, _tokens);
+    /// @return prices The prices of each token in Native, with `DECIMALS` decimals
+    function getTokensPricesNative(address[] calldata _tokens)
+        external
+        view
+        override
+        returns (uint256[] memory prices)
+    {
+        return _getTokenWeightedAveragePrices(_WNATIVE, _tokens);
     }
 
     /** Owner Functions **/
@@ -154,12 +159,12 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         _addDataFeed(_USDC, _token, _dataFeed);
     }
 
-    /// @notice Add a AVAX data feed for a specific token
+    /// @notice Add a Native data feed for a specific token
     /// @dev Can only be called by the owner
     /// @param _token The address of the token
-    /// @param _dataFeed The AVAX data feeds information
-    function addAVAXDataFeed(address _token, DataFeed calldata _dataFeed) external override onlyOwner {
-        _addDataFeed(_WAVAX, _token, _dataFeed);
+    /// @param _dataFeed The Native data feeds information
+    function addNativeDataFeed(address _token, DataFeed calldata _dataFeed) external override onlyOwner {
+        _addDataFeed(_WNATIVE, _token, _dataFeed);
     }
 
     /// @notice Set the USD weight for a specific data feed of a token
@@ -175,17 +180,17 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         _setDataFeedWeight(_USDC, _token, _dfAddress, _newWeight);
     }
 
-    /// @notice Set the AVAX weight for a specific data feed of a token
+    /// @notice Set the Native weight for a specific data feed of a token
     /// @dev Can only be called by the owner
     /// @param _token The address of the token
-    /// @param _dfAddress The AVAX data feed address
+    /// @param _dfAddress The Native data feed address
     /// @param _newWeight The new weight of the data feed
-    function setAVAXDataFeedWeight(
+    function setNativeDataFeedWeight(
         address _token,
         address _dfAddress,
         uint88 _newWeight
     ) external override onlyOwner {
-        _setDataFeedWeight(_WAVAX, _token, _dfAddress, _newWeight);
+        _setDataFeedWeight(_WNATIVE, _token, _dfAddress, _newWeight);
     }
 
     /// @notice Remove a USD data feed of a token
@@ -196,12 +201,12 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         _removeDataFeed(_USDC, _token, _dfAddress);
     }
 
-    /// @notice Remove a AVAX data feed of a token
+    /// @notice Remove a Native data feed of a token
     /// @dev Can only be called by the owner
     /// @param _token The address of the token
-    /// @param _dfAddress The AVAX data feed address
-    function removeAVAXDataFeed(address _token, address _dfAddress) external override onlyOwner {
-        _removeDataFeed(_WAVAX, _token, _dfAddress);
+    /// @param _dfAddress The Native data feed address
+    function removeNativeDataFeed(address _token, address _dfAddress) external override onlyOwner {
+        _removeDataFeed(_WNATIVE, _token, _dfAddress);
     }
 
     /// @notice Batch add USD data feed for each (token, data feed)
@@ -212,12 +217,16 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         _addDataFeeds(_USDC, _tokens, _dataFeeds);
     }
 
-    /// @notice Batch add AVAX data feed for each (token, data feed)
+    /// @notice Batch add Native data feed for each (token, data feed)
     /// @dev Can only be called by the owner
     /// @param _tokens The addresses of the tokens
-    /// @param _dataFeeds The list of AVAX data feeds informations
-    function addAVAXDataFeeds(address[] calldata _tokens, DataFeed[] calldata _dataFeeds) external override onlyOwner {
-        _addDataFeeds(_WAVAX, _tokens, _dataFeeds);
+    /// @param _dataFeeds The list of Native data feeds informations
+    function addNativeDataFeeds(address[] calldata _tokens, DataFeed[] calldata _dataFeeds)
+        external
+        override
+        onlyOwner
+    {
+        _addDataFeeds(_WNATIVE, _tokens, _dataFeeds);
     }
 
     /// @notice Batch set the USD weight for each (token, data feed)
@@ -233,17 +242,17 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         _setDataFeedsWeights(_USDC, _tokens, _dfAddresses, _newWeights);
     }
 
-    /// @notice Batch set the AVAX weight for each (token, data feed)
+    /// @notice Batch set the Native weight for each (token, data feed)
     /// @dev Can only be called by the owner
     /// @param _tokens The list of addresses of the tokens
-    /// @param _dfAddresses The list of AVAX data feed addresses
+    /// @param _dfAddresses The list of Native data feed addresses
     /// @param _newWeights The list of new weights of the data feeds
-    function setAVAXDataFeedsWeights(
+    function setNativeDataFeedsWeights(
         address[] calldata _tokens,
         address[] calldata _dfAddresses,
         uint88[] calldata _newWeights
     ) external override onlyOwner {
-        _setDataFeedsWeights(_WAVAX, _tokens, _dfAddresses, _newWeights);
+        _setDataFeedsWeights(_WNATIVE, _tokens, _dfAddresses, _newWeights);
     }
 
     /// @notice Batch remove a list of USD data feeds for each (token, data feed)
@@ -258,22 +267,22 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         _removeDataFeeds(_USDC, _tokens, _dfAddresses);
     }
 
-    /// @notice Batch remove a list of AVAX data feeds for each (token, data feed)
+    /// @notice Batch remove a list of Native data feeds for each (token, data feed)
     /// @dev Can only be called by the owner
     /// @param _tokens The list of addresses of the tokens
-    /// @param _dfAddresses The list of AVAX data feed addresses
-    function removeAVAXDataFeeds(address[] calldata _tokens, address[] calldata _dfAddresses)
+    /// @param _dfAddresses The list of Native data feed addresses
+    function removeNativeDataFeeds(address[] calldata _tokens, address[] calldata _dfAddresses)
         external
         override
         onlyOwner
     {
-        _removeDataFeeds(_WAVAX, _tokens, _dfAddresses);
+        _removeDataFeeds(_WNATIVE, _tokens, _dfAddresses);
     }
 
     /** Private Functions **/
 
     /// @notice Returns the data feed length for a specific collateral and a token
-    /// @param _collateral The address of the collateral (USDC or WAVAX)
+    /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
     /// @return length The number of data feeds
     function _getDataFeedsLength(address _collateral, address _token) private view returns (uint256 length) {
@@ -281,7 +290,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     }
 
     /// @notice Returns the data feed at index `_index` for a specific collateral and a token
-    /// @param _collateral The address of the collateral (USDC or WAVAX)
+    /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
     /// @param _index The index
     /// @return dataFeed the data feed at index `_index`
@@ -294,9 +303,9 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     }
 
     /// @notice Returns if a (tokens)'s set contains the data feed address
-    /// @param _collateral The address of the collateral (USDC or WAVAX)
+    /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
-    /// @param _dfAddress The AVAX data feed address
+    /// @param _dfAddress The Native data feed address
     /// @return Wether the set contains the data feed address (true) or not (false)
     function _dataFeedContains(
         address _collateral,
@@ -307,7 +316,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     }
 
     /// @notice Add a data feed to a set, return true if it was added, false if not
-    /// @param _collateral The address of the collateral (USDC or WAVAX)
+    /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
     /// @param _dataFeed The data feeds information
     /// @return Wether the data feed was added (true) to the set or not (false)
@@ -328,9 +337,9 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     }
 
     /// @notice Remove a data feed from a set, returns true if it was removed, false if not
-    /// @param _collateral The address of the collateral (USDC or WAVAX)
+    /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
-    /// @param _dfAddress The AVAX data feed address
+    /// @param _dfAddress The Native data feed address
     /// @return Wether the data feed was removed (true) from the set or not (false)
     function _removeFromSet(
         address _collateral,
@@ -361,7 +370,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     }
 
     /// @notice Add a data feed to a set, revert if it couldn't add it
-    /// @param _collateral The address of the collateral (USDC or WAVAX)
+    /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
     /// @param _dataFeed The data feeds information
     function _addDataFeed(
@@ -376,7 +385,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     }
 
     /// @notice Batch add data feed for each (_collateral, token, data feed)
-    /// @param _collateral The address of the collateral (USDC or WAVAX)
+    /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _tokens The addresses of the tokens
     /// @param _dataFeeds The list of USD data feeds informations
     function _addDataFeeds(
@@ -394,9 +403,9 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     }
 
     /// @notice Set the weight for a specific data feed of a (collateral, token)
-    /// @param _collateral The address of the collateral (USDC or WAVAX)
+    /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
-    /// @param _dfAddress The AVAX data feed address
+    /// @param _dfAddress The Native data feed address
     /// @param _newWeight The new weight of the data feed
     function _setDataFeedWeight(
         address _collateral,
@@ -416,7 +425,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     }
 
     /// @notice Batch set the weight for each (_collateral, token, data feed)
-    /// @param _collateral The address of the collateral (USDC or WAVAX)
+    /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _tokens The list of addresses of the tokens
     /// @param _dfAddresses The list of USD data feed addresses
     /// @param _newWeights The list of new weights of the data feeds
@@ -436,9 +445,9 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     }
 
     /// @notice Remove a data feed from a set, revert if it couldn't remove it
-    /// @param _collateral The address of the collateral (USDC or WAVAX)
+    /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
-    /// @param _dfAddress The AVAX data feed address
+    /// @param _dfAddress The Native data feed address
     function _removeDataFeed(
         address _collateral,
         address _token,
@@ -451,7 +460,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     }
 
     /// @notice Batch remove a list of collateral data feeds for each (token, data feed)
-    /// @param _collateral The address of the collateral (USDC or WAVAX)
+    /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _tokens The list of addresses of the tokens
     /// @param _dfAddresses The list of USD data feed addresses
     function _removeDataFeeds(
@@ -469,8 +478,8 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     }
 
     /// @notice Return the weighted average price of a token using its collateral data feeds
-    /// @dev If no data feed was provided, will use V1 TOKEN/AVAX and USDC/TOKEN pools to calculate the price of the token
-    /// @param _collateral The address of the collateral (USDC or WAVAX)
+    /// @dev If no data feed was provided, will use V1 TOKEN/Native and USDC/TOKEN pools to calculate the price of the token
+    /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
     /// @return price The weighted average price of the token
     function _getTokenWeightedAveragePrice(address _collateral, address _token) private view returns (uint256 price) {
@@ -508,8 +517,8 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     }
 
     /// @notice Batch function to return the weighted average price of each tokens using its collateral data feeds
-    /// @dev If no data feed was provided, will use V1 TOKEN/AVAX and USDC/TOKEN pools to calculate the price of the token
-    /// @param _collateral The address of the collateral (USDC or WAVAX)
+    /// @dev If no data feed was provided, will use V1 TOKEN/Native and USDC/TOKEN pools to calculate the price of the token
+    /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _tokens The list of addresses of the tokens
     /// @return prices The list of weighted average price of each token
     function _getTokenWeightedAveragePrices(address _collateral, address[] calldata _tokens)
@@ -610,47 +619,47 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         } else revert JoeDexLens__UnknownDataFeedType();
     }
 
-    /// @notice Return the price of a token using TOKEN/AVAX and TOKEN/USDC V1 pairs, with `DECIMALS` decimals
+    /// @notice Return the price of a token using TOKEN/Native and TOKEN/USDC V1 pairs, with `DECIMALS` decimals
     /// @dev If only one pair is available, will return the price on this pair, and will revert if no pools were created
-    /// @param _collateral The address of the collateral (USDC or WAVAX)
+    /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _token The address of the token
     /// @return price The weighted average, based on pair's liquidity, of the token with `DECIMALS` decimals
     function _getPriceAnyToken(address _collateral, address _token) private view returns (uint256 price) {
-        address pairTokenWavax = _FACTORY_V1.getPair(_token, _WAVAX);
+        address pairTokenWNative = _FACTORY_V1.getPair(_token, _WNATIVE);
         address pairTokenUsdc = _FACTORY_V1.getPair(_token, _USDC);
 
-        if (pairTokenWavax != address(0) && pairTokenUsdc != address(0)) {
-            uint256 priceOfAVAX = _getTokenWeightedAveragePrice(_collateral, _WAVAX);
+        if (pairTokenWNative != address(0) && pairTokenUsdc != address(0)) {
+            uint256 priceOfNative = _getTokenWeightedAveragePrice(_collateral, _WNATIVE);
             uint256 priceOfUSDC = _getTokenWeightedAveragePrice(_collateral, _USDC);
 
             uint256 priceInUSDC = _getPriceFromV1(pairTokenUsdc, _token);
-            uint256 priceInAVAX = _getPriceFromV1(pairTokenWavax, _token);
+            uint256 priceInNative = _getPriceFromV1(pairTokenWNative, _token);
 
             uint256 totalReserveInUSDC = _getReserveInTokenAFromV1(pairTokenUsdc, _USDC, _token);
-            uint256 totalReserveinWAVAX = _getReserveInTokenAFromV1(pairTokenWavax, _WAVAX, _token);
+            uint256 totalReserveinWNative = _getReserveInTokenAFromV1(pairTokenWNative, _WNATIVE, _token);
 
             uint256 weightUSDC = (totalReserveInUSDC * priceOfUSDC) / PRECISION;
-            uint256 weightWAVAX = (totalReserveinWAVAX * priceOfAVAX) / PRECISION;
+            uint256 weightWNative = (totalReserveinWNative * priceOfNative) / PRECISION;
 
             uint256 totalWeights;
             uint256 weightedPriceUSDC = (priceInUSDC * priceOfUSDC * weightUSDC) / PRECISION;
             if (weightedPriceUSDC != 0) totalWeights += weightUSDC;
 
-            uint256 weightedPriceAVAX = (priceInAVAX * priceOfAVAX * weightWAVAX) / PRECISION;
-            if (weightedPriceAVAX != 0) totalWeights += weightWAVAX;
+            uint256 weightedPriceNative = (priceInNative * priceOfNative * weightWNative) / PRECISION;
+            if (weightedPriceNative != 0) totalWeights += weightWNative;
 
             if (totalWeights == 0) revert JoeDexLens__NotEnoughLiquidity();
 
-            return (weightedPriceUSDC + weightedPriceAVAX) / totalWeights;
-        } else if (pairTokenWavax != address(0)) {
-            return _getPriceInCollateralFromV1(_collateral, pairTokenWavax, _WAVAX, _token);
+            return (weightedPriceUSDC + weightedPriceNative) / totalWeights;
+        } else if (pairTokenWNative != address(0)) {
+            return _getPriceInCollateralFromV1(_collateral, pairTokenWNative, _WNATIVE, _token);
         } else if (pairTokenUsdc != address(0)) {
             return _getPriceInCollateralFromV1(_collateral, pairTokenUsdc, _USDC, _token);
         } else revert JoeDexLens__PairsNotCreated();
     }
 
     /// @notice Return the price in collateral of a token from a V1 pair
-    /// @param _collateral The address of the collateral (USDC or WAVAX)
+    /// @param _collateral The address of the collateral (USDC or WNATIVE)
     /// @param _pairAddress The address of the V1 pair
     /// @param _tokenBase The address of the base token of the pair, i.e. the collateral one
     /// @param _token The address of the token

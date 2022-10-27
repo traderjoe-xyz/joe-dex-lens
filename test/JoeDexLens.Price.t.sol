@@ -10,67 +10,76 @@ import "./TestHelper.sol";
 contract TestJoeDexLens2 is TestHelper {
     function setUp() public {
         vm.createSelectFork(vm.rpcUrl("fuji"), 14884890);
-        joeDexLens = new JoeDexLens(ILBRouter(LBRouter), IJoeFactory(factoryV1), WAVAX, USDC);
+        joeDexLens = new JoeDexLens(ILBRouter(LBRouter), IJoeFactory(factoryV1), wNative, USDC);
     }
 
     function testPriceOnSameV1Pair() public {
-        IJoeDexLens.DataFeed memory df = IJoeDexLens.DataFeed(AVAXUSDCv1, 1, IJoeDexLens.dfType.V1);
-        joeDexLens.addUSDDataFeed(WAVAX, df);
-        joeDexLens.addAVAXDataFeed(USDC, df);
+        IJoeDexLens.DataFeed memory df = IJoeDexLens.DataFeed(NativeUSDCv1, 1, IJoeDexLens.dfType.V1);
+        joeDexLens.addUSDDataFeed(wNative, df);
+        joeDexLens.addNativeDataFeed(USDC, df);
 
-        uint256 avaxPrice = joeDexLens.getTokenPriceUSD(WAVAX);
-        uint256 usdcPrice = joeDexLens.getTokenPriceAVAX(USDC);
+        uint256 NativePrice = joeDexLens.getTokenPriceUSD(wNative);
+        uint256 usdcPrice = joeDexLens.getTokenPriceNative(USDC);
 
-        (uint8 decimalsUsdc, uint8 decimalsWavax) = (IERC20Metadata(USDC).decimals(), IERC20Metadata(WAVAX).decimals());
+        (uint8 decimalsUsdc, uint8 decimalsWNative) = (
+            IERC20Metadata(USDC).decimals(),
+            IERC20Metadata(wNative).decimals()
+        );
 
-        assertApproxEqRel(avaxPrice * usdcPrice, 10**(decimalsUsdc + decimalsWavax), 1e12);
+        assertApproxEqRel(NativePrice * usdcPrice, 10**(decimalsUsdc + decimalsWNative), 1e12);
     }
 
     function testPriceWithoutDataFeeds() public {
         vm.expectRevert(JoeDexLens__PairsNotCreated.selector);
         joeDexLens.getTokenPriceUSD(address(1));
 
-        uint256 usdcPrice = joeDexLens.getTokenPriceAVAX(USDC);
-        uint256 usdtPrice = joeDexLens.getTokenPriceAVAX(USDT);
-        uint256 avaxPrice = joeDexLens.getTokenPriceUSD(WAVAX);
+        uint256 usdcPrice = joeDexLens.getTokenPriceNative(USDC);
+        uint256 usdtPrice = joeDexLens.getTokenPriceNative(USDT);
+        uint256 NativePrice = joeDexLens.getTokenPriceUSD(wNative);
 
         assertApproxEqRel(usdcPrice, 5e16, 3e16);
         assertApproxEqRel(usdtPrice, usdcPrice, 1e15);
-        assertApproxEqRel((usdcPrice * avaxPrice) / 1e6, 1e18, 1e15);
+        assertApproxEqRel((usdcPrice * NativePrice) / 1e6, 1e18, 1e15);
     }
 
     function testPriceOnSameV2Pair10bp() public {
-        IJoeDexLens.DataFeed memory df = IJoeDexLens.DataFeed(AVAXUSDC10bps, 1, IJoeDexLens.dfType.V2);
-        joeDexLens.addUSDDataFeed(WAVAX, df);
-        joeDexLens.addAVAXDataFeed(USDC, df);
+        IJoeDexLens.DataFeed memory df = IJoeDexLens.DataFeed(NativeUSDC10bps, 1, IJoeDexLens.dfType.V2);
+        joeDexLens.addUSDDataFeed(wNative, df);
+        joeDexLens.addNativeDataFeed(USDC, df);
 
-        uint256 avaxPrice = joeDexLens.getTokenPriceUSD(WAVAX);
-        uint256 usdcPrice = joeDexLens.getTokenPriceAVAX(USDC);
+        uint256 NativePrice = joeDexLens.getTokenPriceUSD(wNative);
+        uint256 usdcPrice = joeDexLens.getTokenPriceNative(USDC);
 
-        (uint8 decimalsUsdc, uint8 decimalsWavax) = (IERC20Metadata(USDC).decimals(), IERC20Metadata(WAVAX).decimals());
+        (uint8 decimalsUsdc, uint8 decimalsWNative) = (
+            IERC20Metadata(USDC).decimals(),
+            IERC20Metadata(wNative).decimals()
+        );
 
-        assertApproxEqRel(avaxPrice * usdcPrice, 10**(decimalsUsdc + decimalsWavax), 1e12);
+        assertApproxEqRel(NativePrice * usdcPrice, 10**(decimalsUsdc + decimalsWNative), 1e12);
     }
 
     function testPriceOnSameV2Pair20bp() public {
-        IJoeDexLens.DataFeed memory df = IJoeDexLens.DataFeed(AVAXUSDC20bps, 1, IJoeDexLens.dfType.V2);
-        joeDexLens.addUSDDataFeed(WAVAX, df);
-        joeDexLens.addAVAXDataFeed(USDC, df);
+        IJoeDexLens.DataFeed memory df = IJoeDexLens.DataFeed(NativeUSDC20bps, 1, IJoeDexLens.dfType.V2);
+        joeDexLens.addUSDDataFeed(wNative, df);
+        joeDexLens.addNativeDataFeed(USDC, df);
 
-        uint256 avaxPrice = joeDexLens.getTokenPriceUSD(WAVAX);
-        uint256 usdcPrice = joeDexLens.getTokenPriceAVAX(USDC);
+        uint256 NativePrice = joeDexLens.getTokenPriceUSD(wNative);
+        uint256 usdcPrice = joeDexLens.getTokenPriceNative(USDC);
 
-        (uint8 decimalsUsdc, uint8 decimalsWavax) = (IERC20Metadata(USDC).decimals(), IERC20Metadata(WAVAX).decimals());
+        (uint8 decimalsUsdc, uint8 decimalsWNative) = (
+            IERC20Metadata(USDC).decimals(),
+            IERC20Metadata(wNative).decimals()
+        );
 
-        assertApproxEqRel(avaxPrice * usdcPrice, 10**(decimalsUsdc + decimalsWavax), 1e12);
+        assertApproxEqRel(NativePrice * usdcPrice, 10**(decimalsUsdc + decimalsWNative), 1e12);
     }
 
     function testUSDPrice() public {
         (address[] memory tokens, IJoeDexLens.DataFeed[] memory dataFeeds) = getTokenAndDataFeeds(USDC);
         joeDexLens.addUSDDataFeeds(tokens, dataFeeds);
 
-        (address[] memory tokens2, IJoeDexLens.DataFeed[] memory dataFeeds2) = getTokenAndDataFeeds(WAVAX);
-        joeDexLens.addAVAXDataFeeds(tokens2, dataFeeds2);
+        (address[] memory tokens2, IJoeDexLens.DataFeed[] memory dataFeeds2) = getTokenAndDataFeeds(wNative);
+        joeDexLens.addNativeDataFeeds(tokens2, dataFeeds2);
 
         // Price of USDT in USDC will increase, when selling USDC
         uint256 tokenAmount = 50_000e6;
@@ -96,29 +105,29 @@ contract TestJoeDexLens2 is TestHelper {
         assertGt(USDTPrice3, USDTPrice2);
     }
 
-    function testAVAXPrice() public {
+    function testNativePrice() public {
         (address[] memory tokens, IJoeDexLens.DataFeed[] memory dataFeeds) = getTokenAndDataFeeds(USDC);
         joeDexLens.addUSDDataFeeds(tokens, dataFeeds);
 
-        (address[] memory tokens2, IJoeDexLens.DataFeed[] memory dataFeeds2) = getTokenAndDataFeeds(WAVAX);
-        joeDexLens.addAVAXDataFeeds(tokens2, dataFeeds2);
+        (address[] memory tokens2, IJoeDexLens.DataFeed[] memory dataFeeds2) = getTokenAndDataFeeds(wNative);
+        joeDexLens.addNativeDataFeeds(tokens2, dataFeeds2);
 
-        // Price of USDC in AVAX will decrease, when selling USDC
+        // Price of USDC in Native will decrease, when selling USDC
         uint256 tokenAmount = 43_000e6;
-        uint256 USDCPrice1 = joeDexLens.getTokenPriceAVAX(USDC);
+        uint256 USDCPrice1 = joeDexLens.getTokenPriceNative(USDC);
 
         ERC20MockDecimals tokenUSDC = ERC20MockDecimals(USDC);
 
         vm.prank(TokenOwner);
         tokenUSDC.mint(DEV, tokenAmount);
-        tokenUSDC.transfer(AVAXUSDC10bps, tokenAmount);
-        ILBPair(AVAXUSDC10bps).swap(false, DEV);
+        tokenUSDC.transfer(NativeUSDC10bps, tokenAmount);
+        ILBPair(NativeUSDC10bps).swap(false, DEV);
 
-        uint256 USDCPrice2 = joeDexLens.getTokenPriceAVAX(USDC);
+        uint256 USDCPrice2 = joeDexLens.getTokenPriceNative(USDC);
         assertLt(USDCPrice2, USDCPrice1);
         address[] memory path = new address[](2);
         path[0] = USDC;
-        path[1] = WAVAX;
+        path[1] = wNative;
 
         vm.prank(TokenOwner);
         tokenAmount = 150_000e6;
@@ -126,7 +135,7 @@ contract TestJoeDexLens2 is TestHelper {
         tokenUSDC.approve(routerV1, tokenAmount);
         IJoeRouter01(routerV1).swapExactTokensForTokens(tokenAmount, 0, path, DEV, block.timestamp);
 
-        uint256 USDCPrice3 = joeDexLens.getTokenPriceAVAX(USDC);
+        uint256 USDCPrice3 = joeDexLens.getTokenPriceNative(USDC);
         assertLt(USDCPrice3, USDCPrice2);
     }
 

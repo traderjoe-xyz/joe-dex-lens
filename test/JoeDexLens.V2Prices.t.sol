@@ -19,7 +19,7 @@ contract TestV2Prices is TestHelper {
         token10D = new ERC20MockDecimals(10);
         token24D = new ERC20MockDecimals(24);
 
-        joeDexLens = new JoeDexLens(LBRouter, joeFactory, WAVAX, USDC);
+        joeDexLens = new JoeDexLens(LBRouter, joeFactory, wNative, USDC);
 
         vm.startPrank(factoryOwner);
         LBFactory.setFactoryLockedState(false);
@@ -31,13 +31,13 @@ contract TestV2Prices is TestHelper {
 
     function testPriceSameToken() public {
         uint256 priceUSDC = joeDexLens.getTokenPriceUSD(USDC);
-        uint256 priceWAVAX = joeDexLens.getTokenPriceAVAX(WAVAX);
+        uint256 priceWNative = joeDexLens.getTokenPriceNative(wNative);
 
         uint8 decimalsUSDC = IERC20Metadata(USDC).decimals();
-        uint8 decimalsWAVAX = IERC20Metadata(WAVAX).decimals();
+        uint8 decimalsWNative = IERC20Metadata(wNative).decimals();
 
         assertEq(10**decimalsUSDC, priceUSDC);
-        assertEq(10**decimalsWAVAX, priceWAVAX);
+        assertEq(10**decimalsWNative, priceWNative);
     }
 
     function testV2PriceUSDC_USDT() public {
@@ -56,18 +56,18 @@ contract TestV2Prices is TestHelper {
         assertApproxEqAbs(priceLens, priceReal, 1);
     }
 
-    function testV2PriceAVAXUSDC10bps() public {
-        ILBPair pair = ILBPair(AVAXUSDC10bps);
+    function testV2PriceNativeUSDC10bps() public {
+        ILBPair pair = ILBPair(NativeUSDC10bps);
 
         (, , uint256 id) = pair.getReservesAndId();
 
         uint256 price128x128 = LBRouter.getPriceFromId(pair, uint24(id));
 
-        uint8 decimalsX = IERC20Metadata(WAVAX).decimals();
+        uint8 decimalsX = IERC20Metadata(wNative).decimals();
         uint256 priceReal = (price128x128 * 10**decimalsX) >> 128;
 
-        addUSDDataFeed(WAVAX, AVAXUSDC10bps);
-        uint256 priceLens = joeDexLens.getTokenPriceUSD(WAVAX);
+        addUSDDataFeed(wNative, NativeUSDC10bps);
+        uint256 priceLens = joeDexLens.getTokenPriceUSD(wNative);
 
         assertApproxEqAbs(priceLens, priceReal, 1);
     }

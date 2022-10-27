@@ -35,14 +35,14 @@ abstract contract TestHelper is Test {
 
     address public constant USDT = 0xAb231A5744C8E6c45481754928cCfFFFD4aa0732;
     address public constant USDC = 0xB6076C93701D6a07266c31066B298AeC6dd65c2d;
-    address public constant WAVAX = 0xd00ae08403B9bbb9124bB305C09058E32C39A48c;
+    address public constant wNative = 0xd00ae08403B9bbb9124bB305C09058E32C39A48c;
 
     address public constant USDCUSDTv1 = 0x8625feb95141008FE48ea5cf8A7dd84A83a72d9E;
-    address public constant AVAXUSDCv1 = 0x9371619C8E2A487D57FB9F8E36Bcb0317Bff0529;
+    address public constant NativeUSDCv1 = 0x9371619C8E2A487D57FB9F8E36Bcb0317Bff0529;
 
     address public constant USDCUSDT1bps = 0x0716FBE78331932d0Fd9A284b22F0342a6FD8ee8;
-    address public constant AVAXUSDC10bps = 0x1579647e8cc2338111e131A01AF62d85870A659b;
-    address public constant AVAXUSDC20bps = 0xc8aa3bF8623C35EAc518Ea82B55C2aa46D5A02f6;
+    address public constant NativeUSDC10bps = 0x1579647e8cc2338111e131A01AF62d85870A659b;
+    address public constant NativeUSDC20bps = 0xc8aa3bF8623C35EAc518Ea82B55C2aa46D5A02f6;
 
     JoeDexLens public joeDexLens;
 
@@ -96,8 +96,8 @@ abstract contract TestHelper is Test {
             tokens[0] = USDC;
             tokens[1] = USDC;
 
-            dataFeeds[0] = IJoeDexLens.DataFeed(AVAXUSDCv1, 5e18, IJoeDexLens.dfType.V1);
-            dataFeeds[1] = IJoeDexLens.DataFeed(AVAXUSDC10bps, 15e18, IJoeDexLens.dfType.V2);
+            dataFeeds[0] = IJoeDexLens.DataFeed(NativeUSDCv1, 5e18, IJoeDexLens.dfType.V1);
+            dataFeeds[1] = IJoeDexLens.DataFeed(NativeUSDC10bps, 15e18, IJoeDexLens.dfType.V2);
         }
     }
 
@@ -119,8 +119,8 @@ abstract contract TestHelper is Test {
             tokens[0] = USDC;
             tokens[1] = USDC;
 
-            dfAddresses[0] = AVAXUSDCv1;
-            dfAddresses[1] = AVAXUSDC10bps;
+            dfAddresses[0] = NativeUSDCv1;
+            dfAddresses[1] = NativeUSDC10bps;
         }
     }
 

@@ -44,19 +44,19 @@ interface IJoeDexLens is IPendingOwnable {
 
     function getUSDDataFeeds(address token) external view returns (DataFeed[] memory dataFeeds);
 
-    function getAVAXDataFeeds(address token) external view returns (DataFeed[] memory dataFeeds);
+    function getNativeDataFeeds(address token) external view returns (DataFeed[] memory dataFeeds);
 
     function getTokenPriceUSD(address token) external view returns (uint256 price);
 
-    function getTokenPriceAVAX(address token) external view returns (uint256 price);
+    function getTokenPriceNative(address token) external view returns (uint256 price);
 
     function getTokensPricesUSD(address[] calldata tokens) external view returns (uint256[] memory prices);
 
-    function getTokensPricesAVAX(address[] calldata tokens) external view returns (uint256[] memory prices);
+    function getTokensPricesNative(address[] calldata tokens) external view returns (uint256[] memory prices);
 
     function addUSDDataFeed(address token, DataFeed calldata dataFeed) external;
 
-    function addAVAXDataFeed(address token, DataFeed calldata dataFeed) external;
+    function addNativeDataFeed(address token, DataFeed calldata dataFeed) external;
 
     function setUSDDataFeedWeight(
         address token,
@@ -64,7 +64,7 @@ interface IJoeDexLens is IPendingOwnable {
         uint88 newWeight
     ) external;
 
-    function setAVAXDataFeedWeight(
+    function setNativeDataFeedWeight(
         address token,
         address dfAddress,
         uint88 newWeight
@@ -72,11 +72,11 @@ interface IJoeDexLens is IPendingOwnable {
 
     function removeUSDDataFeed(address token, address dfAddress) external;
 
-    function removeAVAXDataFeed(address token, address dfAddress) external;
+    function removeNativeDataFeed(address token, address dfAddress) external;
 
     function addUSDDataFeeds(address[] calldata tokens, DataFeed[] calldata dataFeeds) external;
 
-    function addAVAXDataFeeds(address[] calldata tokens, DataFeed[] calldata dataFeeds) external;
+    function addNativeDataFeeds(address[] calldata tokens, DataFeed[] calldata dataFeeds) external;
 
     function setUSDDataFeedsWeights(
         address[] calldata _tokens,
@@ -84,7 +84,7 @@ interface IJoeDexLens is IPendingOwnable {
         uint88[] calldata _newWeights
     ) external;
 
-    function setAVAXDataFeedsWeights(
+    function setNativeDataFeedsWeights(
         address[] calldata _tokens,
         address[] calldata _dfAddresses,
         uint88[] calldata _newWeights
@@ -92,5 +92,5 @@ interface IJoeDexLens is IPendingOwnable {
 
     function removeUSDDataFeeds(address[] calldata tokens, address[] calldata dfAddresses) external;
 
-    function removeAVAXDataFeeds(address[] calldata tokens, address[] calldata dfAddresses) external;
+    function removeNativeDataFeeds(address[] calldata tokens, address[] calldata dfAddresses) external;
 }

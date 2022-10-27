@@ -10,24 +10,24 @@ import "./TestHelper.sol";
 contract TestJoeDexLens is TestHelper {
     function setUp() public {
         vm.createSelectFork(vm.rpcUrl("fuji"), 14_541_000);
-        joeDexLens = new JoeDexLens(ILBRouter(LBRouter), IJoeFactory(factoryV1), WAVAX, USDC);
+        joeDexLens = new JoeDexLens(ILBRouter(LBRouter), IJoeFactory(factoryV1), wNative, USDC);
     }
 
     function testRevertOnOwnerFunctions() public {
         vm.startPrank(ALICE);
 
         address[] memory usdcSingleton = getAddressSingleton(USDC);
-        address[] memory wavaxSingleton = getAddressSingleton(WAVAX);
+        address[] memory wNativeSingleton = getAddressSingleton(wNative);
 
         // Should pass
         joeDexLens.getRouterV2();
         joeDexLens.getFactoryV1();
         joeDexLens.getUSDDataFeeds(USDC);
-        joeDexLens.getAVAXDataFeeds(WAVAX);
+        joeDexLens.getNativeDataFeeds(wNative);
         joeDexLens.getTokenPriceUSD(USDC);
-        joeDexLens.getTokenPriceAVAX(WAVAX);
+        joeDexLens.getTokenPriceNative(wNative);
         joeDexLens.getTokensPricesUSD(usdcSingleton);
-        joeDexLens.getTokensPricesAVAX(wavaxSingleton);
+        joeDexLens.getTokensPricesNative(wNativeSingleton);
 
         // Should revert
         address address1 = address(1);
@@ -38,19 +38,19 @@ contract TestJoeDexLens is TestHelper {
         joeDexLens.addUSDDataFeed(address1, df);
 
         vm.expectRevert(PendingOwnable__NotOwner.selector);
-        joeDexLens.addAVAXDataFeed(address1, df);
+        joeDexLens.addNativeDataFeed(address1, df);
 
         vm.expectRevert(PendingOwnable__NotOwner.selector);
         joeDexLens.setUSDDataFeedWeight(address1, address1, weight1);
 
         vm.expectRevert(PendingOwnable__NotOwner.selector);
-        joeDexLens.setAVAXDataFeedWeight(address1, address1, weight1);
+        joeDexLens.setNativeDataFeedWeight(address1, address1, weight1);
 
         vm.expectRevert(PendingOwnable__NotOwner.selector);
         joeDexLens.removeUSDDataFeed(address1, address1);
 
         vm.expectRevert(PendingOwnable__NotOwner.selector);
-        joeDexLens.removeAVAXDataFeed(address1, address1);
+        joeDexLens.removeNativeDataFeed(address1, address1);
 
         IJoeDexLens.DataFeed[] memory dfSingleton = getDataFeedSingleton(df);
 
@@ -58,7 +58,7 @@ contract TestJoeDexLens is TestHelper {
         joeDexLens.addUSDDataFeeds(usdcSingleton, dfSingleton);
 
         vm.expectRevert(PendingOwnable__NotOwner.selector);
-        joeDexLens.addAVAXDataFeeds(wavaxSingleton, dfSingleton);
+        joeDexLens.addNativeDataFeeds(wNativeSingleton, dfSingleton);
 
         uint88[] memory uint8Singleton = getUint88Singleton(1);
 
@@ -66,13 +66,13 @@ contract TestJoeDexLens is TestHelper {
         joeDexLens.setUSDDataFeedsWeights(usdcSingleton, usdcSingleton, uint8Singleton);
 
         vm.expectRevert(PendingOwnable__NotOwner.selector);
-        joeDexLens.setAVAXDataFeedsWeights(wavaxSingleton, wavaxSingleton, uint8Singleton);
+        joeDexLens.setNativeDataFeedsWeights(wNativeSingleton, wNativeSingleton, uint8Singleton);
 
         vm.expectRevert(PendingOwnable__NotOwner.selector);
         joeDexLens.removeUSDDataFeeds(usdcSingleton, usdcSingleton);
 
         vm.expectRevert(PendingOwnable__NotOwner.selector);
-        joeDexLens.removeAVAXDataFeeds(wavaxSingleton, wavaxSingleton);
+        joeDexLens.removeNativeDataFeeds(wNativeSingleton, wNativeSingleton);
 
         vm.stopPrank();
     }
