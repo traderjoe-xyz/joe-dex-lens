@@ -555,7 +555,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
 
         // Return the price with `DECIMALS` decimals
         if (aggregatorDecimals < DECIMALS) price *= 10**(DECIMALS - aggregatorDecimals);
-        else if (aggregatorDecimals > DECIMALS) price *= 10**(aggregatorDecimals - DECIMALS);
+        else if (aggregatorDecimals > DECIMALS) price /= 10**(aggregatorDecimals - DECIMALS);
     }
 
     /// @notice Return the price of the token denominated in the second token of the V1 pair, with `DECIMALS` decimals
@@ -708,6 +708,6 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         else totalReserveInTokenA = reserve1 * 2;
 
         if (decimals < DECIMALS) totalReserveInTokenA *= 10**(DECIMALS - decimals);
-        else if (decimals > DECIMALS) totalReserveInTokenA *= 10**(decimals - DECIMALS);
+        else if (decimals > DECIMALS) totalReserveInTokenA /= 10**(decimals - DECIMALS);
     }
 }
