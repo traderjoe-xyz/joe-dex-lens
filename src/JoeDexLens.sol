@@ -545,8 +545,13 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         (, int256 sPrice, , , ) = aggregator.latestRoundData();
         if (sPrice <= 0) revert JoeDexLens__InvalidChainLinkPrice();
 
-        // Extend the price to `DECIMALS` decimals
-        return uint256(sPrice) * 10**(DECIMALS - uint256(aggregator.decimals()));
+        price = uint256(sPrice);
+
+        uint256 aggregatorDecimals = aggregator.decimals();
+
+        // Return the price with `DECIMALS` decimals
+        if (aggregatorDecimals < DECIMALS) price *= 10**(DECIMALS - aggregatorDecimals);
+        else if (aggregatorDecimals > DECIMALS) price *= 10**(aggregatorDecimals - DECIMALS);
     }
 
     /// @notice Return the price of the token denominated in the second token of the V1 pair, with `DECIMALS` decimals
@@ -695,6 +700,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         if (_tokenA < _tokenB) totalReserveInTokenA = reserve0 * 2;
         else totalReserveInTokenA = reserve1 * 2;
 
-        if (decimals != DECIMALS) totalReserveInTokenA *= 10**(DECIMALS - decimals);
+        if (decimals < DECIMALS) totalReserveInTokenA *= 10**(DECIMALS - decimals);
+        else if (decimals > DECIMALS) totalReserveInTokenA *= 10**(decimals - DECIMALS);
     }
 }
