@@ -4,21 +4,25 @@ This repository contains JoeDexLens contract, which purpose is to provide token 
 
 This contract is not supposed to provide price oracle for any financial operations - should be seen only as helper contract for statistical/analytical purposes.
 
-This contract provides 2 functions for reading token price:
-- `getTokenPriceUSD` 
+This contract provides four functions for reading token price:
+- `getTokenPriceUSD`
+- `getTokensPricesUSD`
 - `getTokenPriceAVAX`
+- `getTokensPricesAVAX`
 
-To add markets, functions:
-- `addUSDMarkets`
-- `addAVAXMarkets`
+To add markets, use the following four functions:
+- `addUSDDataFeed`
+- `addUSDDataFeeds`
+- `addNativeDataFeed`
+- `addNativeDataFeeds`
 
-should be used.
+To set the weight of a data feed, use the following four functions:
+- `setUSDDataFeedWeight`
+- `setUSDDataFeedsWeights`
+- `setNativeDataFeedWeight`
+- `setNativeDataFeedsWeights`
 
-Weighted price based on reserves will be calculated. 
-
-If no markets for a given token was added, AVAX-token and USDC-token from Joe V1 will be used to return the token's price. 
-
-
+If no markets for a given token was added, Token-Native and Token-USDC from Joe V1 will be used to return the token's price. The weight will be calculated using the liquidity of the different pairs.
 
 ## Install foundry
 
