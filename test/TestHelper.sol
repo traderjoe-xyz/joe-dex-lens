@@ -20,9 +20,9 @@ abstract contract TestHelper is Test {
     address internal immutable ALICE = address(bytes20(bytes32(keccak256(bytes("ALICE")))));
 
     uint16 internal constant DEFAULT_BIN_STEP = 20;
-    uint24 internal constant ID_ONE = 2**23;
+    uint24 internal constant ID_ONE = 2 ** 23;
 
-    address public constant TokenOwner = 0xFFC08538077a0455E0F4077823b1A0E3e18Faf0b;
+    address public constant tokenOwner = 0xFFC08538077a0455E0F4077823b1A0E3e18Faf0b;
     address public constant factoryOwner = 0x4f029B3faA0fE6405Ae6eBA5795293688cf69c2e;
 
     ILBFactory public constant LBFactory = ILBFactory(0x2950b9bd19152C91d69227364747b3e6EFC8Ab7F);
@@ -46,11 +46,7 @@ abstract contract TestHelper is Test {
 
     JoeDexLens public joeDexLens;
 
-    function createPairAndAddToUSDDataFeeds(
-        address tokenX,
-        address tokenY,
-        uint24 id
-    ) internal {
+    function createPairAndAddToUSDDataFeeds(address tokenX, address tokenY, uint24 id) internal {
         ILBPair pair = LBRouter.createLBPair(IERC20(tokenX), IERC20(tokenY), id, DEFAULT_BIN_STEP);
 
         IJoeDexLens.DataFeed memory dataFeed = IJoeDexLens.DataFeed(address(pair), 1e18, IJoeDexLens.dfType.V2);

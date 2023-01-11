@@ -48,7 +48,7 @@ contract TestJoeDexLens is TestHelper {
         IJoeDexLens.DataFeed memory df = IJoeDexLens.DataFeed(address(1), 1, IJoeDexLens.dfType.CHAINLINK);
         joeDexLens.addUSDDataFeed(wNative, df);
 
-        vm.expectRevert(abi.encodeWithSelector(JoeDexLens__NullWeight.selector));
+        vm.expectRevert(abi.encodeWithSelector(IJoeDexLens.JoeDexLens__NullWeight.selector));
         joeDexLens.setUSDDataFeedWeight(wNative, df.dfAddress, 0);
 
         joeDexLens.setUSDDataFeedWeight(wNative, df.dfAddress, 1e18);
@@ -70,7 +70,7 @@ contract TestJoeDexLens is TestHelper {
         IJoeDexLens.DataFeed memory df = IJoeDexLens.DataFeed(address(1), 1, IJoeDexLens.dfType.CHAINLINK);
         joeDexLens.addNativeDataFeed(USDC, df);
 
-        vm.expectRevert(abi.encodeWithSelector(JoeDexLens__NullWeight.selector));
+        vm.expectRevert(abi.encodeWithSelector(IJoeDexLens.JoeDexLens__NullWeight.selector));
         joeDexLens.setNativeDataFeedWeight(USDC, df.dfAddress, 0);
 
         joeDexLens.setNativeDataFeedWeight(USDC, df.dfAddress, 1e18);
@@ -94,17 +94,23 @@ contract TestJoeDexLens is TestHelper {
         joeDexLens.addUSDDataFeeds(tokens, dataFeeds);
 
         vm.expectRevert(
-            abi.encodeWithSelector(JoeDexLens__DataFeedAlreadyAdded.selector, USDC, tokens[0], dataFeeds[0].dfAddress)
+            abi.encodeWithSelector(
+                IJoeDexLens.JoeDexLens__DataFeedAlreadyAdded.selector, USDC, tokens[0], dataFeeds[0].dfAddress
+            )
         );
         joeDexLens.addUSDDataFeeds(tokens, dataFeeds);
 
         vm.expectRevert(
-            abi.encodeWithSelector(JoeDexLens__DataFeedAlreadyAdded.selector, USDC, tokens[0], dataFeeds[0].dfAddress)
+            abi.encodeWithSelector(
+                IJoeDexLens.JoeDexLens__DataFeedAlreadyAdded.selector, USDC, tokens[0], dataFeeds[0].dfAddress
+            )
         );
         joeDexLens.addUSDDataFeed(tokens[0], dataFeeds[0]);
 
         vm.expectRevert(
-            abi.encodeWithSelector(JoeDexLens__DataFeedAlreadyAdded.selector, USDC, tokens[1], dataFeeds[1].dfAddress)
+            abi.encodeWithSelector(
+                IJoeDexLens.JoeDexLens__DataFeedAlreadyAdded.selector, USDC, tokens[1], dataFeeds[1].dfAddress
+            )
         );
         joeDexLens.addUSDDataFeed(tokens[1], dataFeeds[1]);
 
@@ -124,7 +130,9 @@ contract TestJoeDexLens is TestHelper {
         joeDexLens.removeUSDDataFeed(tokens[0], dataFeeds[0].dfAddress);
 
         vm.expectRevert(
-            abi.encodeWithSelector(JoeDexLens__DataFeedNotInSet.selector, USDC, tokens[0], dataFeeds[0].dfAddress)
+            abi.encodeWithSelector(
+                IJoeDexLens.JoeDexLens__DataFeedNotInSet.selector, USDC, tokens[0], dataFeeds[0].dfAddress
+            )
         );
         joeDexLens.removeUSDDataFeed(tokens[0], dataFeeds[0].dfAddress);
         USDTDataFeeds = joeDexLens.getUSDDataFeeds(USDT);
@@ -189,30 +197,21 @@ contract TestJoeDexLens is TestHelper {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                JoeDexLens__DataFeedAlreadyAdded.selector,
-                wNative,
-                tokens[0],
-                dataFeeds[0].dfAddress
+                IJoeDexLens.JoeDexLens__DataFeedAlreadyAdded.selector, wNative, tokens[0], dataFeeds[0].dfAddress
             )
         );
         joeDexLens.addNativeDataFeeds(tokens, dataFeeds);
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                JoeDexLens__DataFeedAlreadyAdded.selector,
-                wNative,
-                tokens[0],
-                dataFeeds[0].dfAddress
+                IJoeDexLens.JoeDexLens__DataFeedAlreadyAdded.selector, wNative, tokens[0], dataFeeds[0].dfAddress
             )
         );
         joeDexLens.addNativeDataFeed(tokens[0], dataFeeds[0]);
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                JoeDexLens__DataFeedAlreadyAdded.selector,
-                wNative,
-                tokens[1],
-                dataFeeds[1].dfAddress
+                IJoeDexLens.JoeDexLens__DataFeedAlreadyAdded.selector, wNative, tokens[1], dataFeeds[1].dfAddress
             )
         );
         joeDexLens.addNativeDataFeed(tokens[1], dataFeeds[1]);

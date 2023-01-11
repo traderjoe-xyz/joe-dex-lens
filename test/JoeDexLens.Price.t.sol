@@ -21,16 +21,14 @@ contract TestJoeDexLens2 is TestHelper {
         uint256 NativePrice = joeDexLens.getTokenPriceUSD(wNative);
         uint256 usdcPrice = joeDexLens.getTokenPriceNative(USDC);
 
-        (uint8 decimalsUsdc, uint8 decimalsWNative) = (
-            IERC20Metadata(USDC).decimals(),
-            IERC20Metadata(wNative).decimals()
-        );
+        (uint8 decimalsUsdc, uint8 decimalsWNative) =
+            (IERC20Metadata(USDC).decimals(), IERC20Metadata(wNative).decimals());
 
-        assertApproxEqRel(NativePrice * usdcPrice, 10**(decimalsUsdc + decimalsWNative), 1e12);
+        assertApproxEqRel(NativePrice * usdcPrice, 10 ** (decimalsUsdc + decimalsWNative), 1e12);
     }
 
     function testPriceWithoutDataFeeds() public {
-        vm.expectRevert(JoeDexLens__PairsNotCreated.selector);
+        vm.expectRevert(IJoeDexLens.JoeDexLens__PairsNotCreated.selector);
         joeDexLens.getTokenPriceUSD(address(1));
 
         uint256 usdcPrice = joeDexLens.getTokenPriceNative(USDC);
@@ -50,12 +48,10 @@ contract TestJoeDexLens2 is TestHelper {
         uint256 NativePrice = joeDexLens.getTokenPriceUSD(wNative);
         uint256 usdcPrice = joeDexLens.getTokenPriceNative(USDC);
 
-        (uint8 decimalsUsdc, uint8 decimalsWNative) = (
-            IERC20Metadata(USDC).decimals(),
-            IERC20Metadata(wNative).decimals()
-        );
+        (uint8 decimalsUsdc, uint8 decimalsWNative) =
+            (IERC20Metadata(USDC).decimals(), IERC20Metadata(wNative).decimals());
 
-        assertApproxEqRel(NativePrice * usdcPrice, 10**(decimalsUsdc + decimalsWNative), 1e12);
+        assertApproxEqRel(NativePrice * usdcPrice, 10 ** (decimalsUsdc + decimalsWNative), 1e12);
     }
 
     function testPriceOnSameV2Pair20bp() public {
@@ -66,12 +62,10 @@ contract TestJoeDexLens2 is TestHelper {
         uint256 NativePrice = joeDexLens.getTokenPriceUSD(wNative);
         uint256 usdcPrice = joeDexLens.getTokenPriceNative(USDC);
 
-        (uint8 decimalsUsdc, uint8 decimalsWNative) = (
-            IERC20Metadata(USDC).decimals(),
-            IERC20Metadata(wNative).decimals()
-        );
+        (uint8 decimalsUsdc, uint8 decimalsWNative) =
+            (IERC20Metadata(USDC).decimals(), IERC20Metadata(wNative).decimals());
 
-        assertApproxEqRel(NativePrice * usdcPrice, 10**(decimalsUsdc + decimalsWNative), 1e12);
+        assertApproxEqRel(NativePrice * usdcPrice, 10 ** (decimalsUsdc + decimalsWNative), 1e12);
     }
 
     function testUSDPrice() public {
@@ -86,11 +80,11 @@ contract TestJoeDexLens2 is TestHelper {
         uint256 USDTPrice1 = joeDexLens.getTokenPriceUSD(USDT);
         ERC20MockDecimals tokenUSDC = ERC20MockDecimals(USDC);
 
-        vm.prank(TokenOwner);
+        vm.prank(tokenOwner);
         tokenUSDC.mint(DEV, tokenAmount);
         tokenUSDC.transfer(USDCUSDT1bps, tokenAmount);
 
-        vm.prank(TokenOwner);
+        vm.prank(tokenOwner);
         tokenUSDC.mint(DEV, tokenAmount);
         ILBPair(USDCUSDT1bps).swap(true, DEV);
 
@@ -118,7 +112,7 @@ contract TestJoeDexLens2 is TestHelper {
 
         ERC20MockDecimals tokenUSDC = ERC20MockDecimals(USDC);
 
-        vm.prank(TokenOwner);
+        vm.prank(tokenOwner);
         tokenUSDC.mint(DEV, tokenAmount);
         tokenUSDC.transfer(NativeUSDC10bps, tokenAmount);
         ILBPair(NativeUSDC10bps).swap(false, DEV);
@@ -129,7 +123,7 @@ contract TestJoeDexLens2 is TestHelper {
         path[0] = USDC;
         path[1] = wNative;
 
-        vm.prank(TokenOwner);
+        vm.prank(tokenOwner);
         tokenAmount = 150_000e6;
         tokenUSDC.mint(DEV, tokenAmount);
         tokenUSDC.approve(routerV1, tokenAmount);
@@ -138,4 +132,44 @@ contract TestJoeDexLens2 is TestHelper {
         uint256 USDCPrice3 = joeDexLens.getTokenPriceNative(USDC);
         assertLt(USDCPrice3, USDCPrice2);
     }
+
+    function testNativePriceFallbackOnUSDDatafeeds() external {
+        IJoeDexLens.DataFeed memory dfUSDTUSDC = IJoeDexLens.DataFeed(USDCUSDT1bps, 1, IJoeDexLens.dfType.V2);
+        joeDexLens.addUSDDataFeed(USDT, dfUSDTUSDC);
+
+        IJoeDexLens.DataFeed memory dfNativeUSD = IJoeDexLens.DataFeed(NativeUSDC10bps, 1, IJoeDexLens.dfType.V2);
+        joeDexLens.addUSDDataFeed(wNative, dfNativeUSD);
+
+        uint256 usdtPriceUSD = joeDexLens.getTokenPriceUSD(USDT);
+        uint256 nativePriceUSD = joeDexLens.getTokenPriceUSD(wNative);
+
+        uint256 tokenPrice = joeDexLens.getTokenPriceNative(USDT);
+
+        assertEq(tokenPrice, usdtPriceUSD * 10 ** 18 / nativePriceUSD);
+    }
+
+    function testUSDPriceFallbackOnNativeDatafeeds() external {
+        IPair USDTwNative = IFactory(factoryV1).getPair(wNative, USDT);
+
+        IJoeDexLens.DataFeed memory dfUSDTNative = IJoeDexLens.DataFeed(address(USDTwNative), 1, IJoeDexLens.dfType.V1);
+        joeDexLens.addNativeDataFeed(USDT, dfUSDTNative);
+
+        IJoeDexLens.DataFeed memory dfNativeUSD = IJoeDexLens.DataFeed(NativeUSDC10bps, 1, IJoeDexLens.dfType.V2);
+        joeDexLens.addNativeDataFeed(USDC, dfNativeUSD);
+
+        uint256 usdtPriceNative = joeDexLens.getTokenPriceNative(USDT);
+        uint256 nativePriceUSD = joeDexLens.getTokenPriceNative(USDC);
+
+        uint256 tokenPrice = joeDexLens.getTokenPriceUSD(USDT);
+
+        assertEq(tokenPrice, usdtPriceNative * 1e6 / nativePriceUSD);
+    }
+}
+
+interface IFactory {
+    function getPair(address tokenA, address tokenB) external view returns (IPair pair);
+}
+
+interface IPair {
+    function mint(address to) external returns (uint256 liquidity);
 }

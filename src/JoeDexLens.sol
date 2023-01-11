@@ -4,67 +4,69 @@ pragma solidity ^0.8.0;
 
 import "joe-v2/libraries/Math512Bits.sol";
 import "joe-v2/libraries/Constants.sol";
-import "joe-v2/libraries/PendingOwnable.sol";
 import "joe-v2/interfaces/ILBPair.sol";
 import "joe-v2/interfaces/IJoePair.sol";
 import "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
+import "solrary/access/SafeAccessControlEnumerable.sol";
 
 import "./interfaces/IJoeDexLens.sol";
 
 /// @title Joe Dex Lens
 /// @author Trader Joe
-/// @notice This contract allows to price tokens in either Native or USDC. It could be easily extended to any collateral.
-/// Owners can add or remove data feeds to price a token and can set the weight of the different data feeds.
-/// When no data feed is provided, the contract will use the TOKEN/WNative and TOKEN/USDC V1 pool to try to price the asset
-contract JoeDexLens is PendingOwnable, IJoeDexLens {
+/// @notice This contract allows to price tokens in either Native or a usd stable token.
+/// It could be easily extended to any collateral. Owner can grant or revoke role to add data feeds to price a token
+/// and can set the weight of the different data feeds. When no data feed is provided for both collateral, the contract
+/// will use the TOKEN/WNative and TOKEN/USD V1 pool to try to price the asset
+contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     using Math512Bits for uint256;
 
-    uint256 constant DECIMALS = 18;
-    uint256 constant PRECISION = 10**DECIMALS;
+    bytes32 public constant DATA_FEED_MANAGER_ROLE = keccak256("DATA_FEED_MANAGER_ROLE");
+
+    uint256 private constant _DECIMALS = 18;
+    uint256 private constant _PRECISION = 10 ** _DECIMALS;
 
     ILBRouter private immutable _ROUTER_V2;
     IJoeFactory private immutable _FACTORY_V1;
 
     address private immutable _WNATIVE;
-    address private immutable _USDC;
+    address private immutable _USD_STABLE_COIN;
 
     /// @dev Mapping from a collateral token to a token to an enumerable set of data feeds used to get the price of the token in collateral
-    /// e.g. USDC => Native will return datafeeds to get the price of Native in USD
+    /// e.g. STABLECOIN => Native will return datafeeds to get the price of Native in USD
     /// And Native => JOE will return datafeeds to get the price of JOE in Native
     mapping(address => mapping(address => DataFeedSet)) private _whitelistedDataFeeds;
 
-    /** Modifiers **/
+    /**
+     * Modifiers *
+     */
 
     /// @notice Verify that the two lengths match
     /// @dev Revert if length are not equal
-    /// @param _lengthA The length of the first list
-    /// @param _lengthB The length of the second list
-    modifier verifyLengths(uint256 _lengthA, uint256 _lengthB) {
-        if (_lengthA != _lengthB) revert JoeDexLens__LengthsMismatch();
+    /// @param lengthA The length of the first list
+    /// @param lengthB The length of the second list
+    modifier verifyLengths(uint256 lengthA, uint256 lengthB) {
+        if (lengthA != lengthB) revert JoeDexLens__LengthsMismatch();
         _;
     }
 
     /// @notice Verify a data feed
     /// @dev Revert if :
-    /// - The _collateral and the _token are the same address
-    /// - The _collateral is not one of the two tokens of the pair (if the dfType is V1 or V2)
-    /// - The _token is not one of the two tokens of the pair (if the dfType is V1 or V2)
-    /// @param _collateral The address of the collateral (USDC or WNATIVE)
-    /// @param _token The address of the token
-    /// @param _dataFeed The data feeds information
-    modifier verifyDataFeed(
-        address _collateral,
-        address _token,
-        DataFeed calldata _dataFeed
-    ) {
-        if (_collateral == _token) revert JoeDexLens__SameTokens();
+    /// - The collateral and the token are the same address
+    /// - The collateral is not one of the two tokens of the pair (if the dfType is V1 or V2)
+    /// - The token is not one of the two tokens of the pair (if the dfType is V1 or V2)
+    /// @param collateral The address of the collateral (STABLECOIN or WNATIVE)
+    /// @param token The address of the token
+    /// @param dataFeed The data feeds information
+    modifier verifyDataFeed(address collateral, address token, DataFeed calldata dataFeed) {
+        if (collateral == token) revert JoeDexLens__SameTokens();
 
-        if (_dataFeed.dfType != dfType.CHAINLINK) {
-            (address tokenA, address tokenB) = _getTokens(_dataFeed);
+        if (dataFeed.dfType != dfType.CHAINLINK) {
+            (address tokenA, address tokenB) = _getTokens(dataFeed);
 
-            if (tokenA != _collateral && tokenB != _collateral)
-                revert JoeDexLens__CollateralNotInPair(_dataFeed.dfAddress, _collateral);
-            if (tokenA != _token && tokenB != _token) revert JoeDexLens__TokenNotInPair(_dataFeed.dfAddress, _token);
+            if (tokenA != collateral && tokenB != collateral) {
+                revert JoeDexLens__CollateralNotInPair(dataFeed.dfAddress, collateral);
+            }
+            if (tokenA != token && tokenB != token) revert JoeDexLens__TokenNotInPair(dataFeed.dfAddress, token);
         }
         _;
     }
@@ -77,21 +79,32 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         _;
     }
 
-    /** Constructor **/
+    /**
+     * Constructor *
+     */
 
-    constructor(
-        ILBRouter _routerV2,
-        IJoeFactory _factoryV1,
-        address _wNative,
-        address _usdc
-    ) {
-        _ROUTER_V2 = _routerV2;
-        _FACTORY_V1 = _factoryV1;
-        _WNATIVE = _wNative;
-        _USDC = _usdc;
+    constructor(ILBRouter routerV2, IJoeFactory factoryV1, address wNative, address usdStableCoin) {
+        _ROUTER_V2 = routerV2;
+        _FACTORY_V1 = factoryV1;
+        _WNATIVE = wNative;
+        _USD_STABLE_COIN = usdStableCoin;
     }
 
-    /** External View Functions **/
+    /**
+     * External View Functions *
+     */
+
+    /// @notice Returns the address of the wrapped native token
+    /// @return wNative The address of the wrapped native token
+    function getWNative() external view override returns (address wNative) {
+        return _WNATIVE;
+    }
+
+    /// @notice Returns the address of the usd stable coin
+    /// @return stableCoin The address of the usd stable coin
+    function getUSDStableCoin() external view override returns (address stableCoin) {
+        return _USD_STABLE_COIN;
+    }
 
     /// @notice Returns the address of the router V2
     /// @return routerV2 The address of the router V2
@@ -105,234 +118,250 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         return _FACTORY_V1;
     }
 
-    /// @notice Returns the list of data feeds used to calculate the price of the token in USD
-    /// @param _token The address of the token
-    /// @return dataFeeds The array of data feeds used to price `token` in USD
-    function getUSDDataFeeds(address _token) external view override returns (DataFeed[] memory dataFeeds) {
-        return _whitelistedDataFeeds[_USDC][_token].dataFeeds;
+    /// @notice Returns the list of data feeds used to calculate the price of the token in stable coin
+    /// @param token The address of the token
+    /// @return dataFeeds The array of data feeds used to price `token` in stable coin
+    function getUSDDataFeeds(address token) external view override returns (DataFeed[] memory dataFeeds) {
+        return _whitelistedDataFeeds[_USD_STABLE_COIN][token].dataFeeds;
     }
 
     /// @notice Returns the list of data feeds used to calculate the price of the token in Native
-    /// @param _token The address of the token
+    /// @param token The address of the token
     /// @return dataFeeds The array of data feeds used to price `token` in Native
-    function getNativeDataFeeds(address _token) external view override returns (DataFeed[] memory dataFeeds) {
-        return _whitelistedDataFeeds[_WNATIVE][_token].dataFeeds;
+    function getNativeDataFeeds(address token) external view override returns (DataFeed[] memory dataFeeds) {
+        return _whitelistedDataFeeds[_WNATIVE][token].dataFeeds;
     }
 
     /// @notice Returns the price of token in USD, scaled with 6 decimals
-    /// @param _token The address of the token
+    /// @param token The address of the token
     /// @return price The price of the token in USD, with 6 decimals
-    function getTokenPriceUSD(address _token) external view override returns (uint256 price) {
-        return _getTokenWeightedAveragePrice(_USDC, _token);
+    function getTokenPriceUSD(address token) external view override returns (uint256 price) {
+        return _getTokenWeightedAveragePrice(_USD_STABLE_COIN, token);
     }
 
-    /// @notice Returns the price of token in Native, scaled with `DECIMALS` decimals
-    /// @param _token The address of the token
-    /// @return price The price of the token in Native, with `DECIMALS` decimals
-    function getTokenPriceNative(address _token) external view override returns (uint256 price) {
-        return _getTokenWeightedAveragePrice(_WNATIVE, _token);
+    /// @notice Returns the price of token in Native, scaled with `_DECIMALS` decimals
+    /// @param token The address of the token
+    /// @return price The price of the token in Native, with `_DECIMALS` decimals
+    function getTokenPriceNative(address token) external view override returns (uint256 price) {
+        return _getTokenWeightedAveragePrice(_WNATIVE, token);
     }
 
     /// @notice Returns the prices of each token in USD, scaled with 6 decimals
-    /// @param _tokens The list of address of the tokens
+    /// @param tokens The list of address of the tokens
     /// @return prices The prices of each token in USD, with 6 decimals
-    function getTokensPricesUSD(address[] calldata _tokens) external view override returns (uint256[] memory prices) {
-        return _getTokenWeightedAveragePrices(_USDC, _tokens);
+    function getTokensPricesUSD(address[] calldata tokens) external view override returns (uint256[] memory prices) {
+        return _getTokenWeightedAveragePrices(_USD_STABLE_COIN, tokens);
     }
 
-    /// @notice Returns the prices of each token in Native, scaled with `DECIMALS` decimals
-    /// @param _tokens The list of address of the tokens
-    /// @return prices The prices of each token in Native, with `DECIMALS` decimals
-    function getTokensPricesNative(address[] calldata _tokens)
+    /// @notice Returns the prices of each token in Native, scaled with `_DECIMALS` decimals
+    /// @param tokens The list of address of the tokens
+    /// @return prices The prices of each token in Native, with `_DECIMALS` decimals
+    function getTokensPricesNative(address[] calldata tokens)
         external
         view
         override
         returns (uint256[] memory prices)
     {
-        return _getTokenWeightedAveragePrices(_WNATIVE, _tokens);
+        return _getTokenWeightedAveragePrices(_WNATIVE, tokens);
     }
 
-    /** Owner Functions **/
+    /**
+     * Owner Functions *
+     */
 
     /// @notice Add a USD data feed for a specific token
     /// @dev Can only be called by the owner
-    /// @param _token The address of the token
-    /// @param _dataFeed The USD data feeds information
-    function addUSDDataFeed(address _token, DataFeed calldata _dataFeed) external override onlyOwner {
-        _addDataFeed(_USDC, _token, _dataFeed);
+    /// @param token The address of the token
+    /// @param dataFeed The USD data feeds information
+    function addUSDDataFeed(address token, DataFeed calldata dataFeed)
+        external
+        override
+        onlyOwnerOrRole(DATA_FEED_MANAGER_ROLE)
+    {
+        _addDataFeed(_USD_STABLE_COIN, token, dataFeed);
     }
 
     /// @notice Add a Native data feed for a specific token
     /// @dev Can only be called by the owner
-    /// @param _token The address of the token
-    /// @param _dataFeed The Native data feeds information
-    function addNativeDataFeed(address _token, DataFeed calldata _dataFeed) external override onlyOwner {
-        _addDataFeed(_WNATIVE, _token, _dataFeed);
+    /// @param token The address of the token
+    /// @param dataFeed The Native data feeds information
+    function addNativeDataFeed(address token, DataFeed calldata dataFeed)
+        external
+        override
+        onlyOwnerOrRole(DATA_FEED_MANAGER_ROLE)
+    {
+        _addDataFeed(_WNATIVE, token, dataFeed);
     }
 
     /// @notice Set the USD weight for a specific data feed of a token
     /// @dev Can only be called by the owner
-    /// @param _token The address of the token
-    /// @param _dfAddress The USD data feed address
-    /// @param _newWeight The new weight of the data feed
-    function setUSDDataFeedWeight(
-        address _token,
-        address _dfAddress,
-        uint88 _newWeight
-    ) external override onlyOwner {
-        _setDataFeedWeight(_USDC, _token, _dfAddress, _newWeight);
+    /// @param token The address of the token
+    /// @param dfAddress The USD data feed address
+    /// @param newWeight The new weight of the data feed
+    function setUSDDataFeedWeight(address token, address dfAddress, uint88 newWeight)
+        external
+        override
+        onlyOwnerOrRole(DATA_FEED_MANAGER_ROLE)
+    {
+        _setDataFeedWeight(_USD_STABLE_COIN, token, dfAddress, newWeight);
     }
 
     /// @notice Set the Native weight for a specific data feed of a token
     /// @dev Can only be called by the owner
-    /// @param _token The address of the token
-    /// @param _dfAddress The data feed address
-    /// @param _newWeight The new weight of the data feed
-    function setNativeDataFeedWeight(
-        address _token,
-        address _dfAddress,
-        uint88 _newWeight
-    ) external override onlyOwner {
-        _setDataFeedWeight(_WNATIVE, _token, _dfAddress, _newWeight);
+    /// @param token The address of the token
+    /// @param dfAddress The data feed address
+    /// @param newWeight The new weight of the data feed
+    function setNativeDataFeedWeight(address token, address dfAddress, uint88 newWeight)
+        external
+        override
+        onlyOwnerOrRole(DATA_FEED_MANAGER_ROLE)
+    {
+        _setDataFeedWeight(_WNATIVE, token, dfAddress, newWeight);
     }
 
     /// @notice Remove a USD data feed of a token
     /// @dev Can only be called by the owner
-    /// @param _token The address of the token
-    /// @param _dfAddress The USD data feed address
-    function removeUSDDataFeed(address _token, address _dfAddress) external override onlyOwner {
-        _removeDataFeed(_USDC, _token, _dfAddress);
+    /// @param token The address of the token
+    /// @param dfAddress The USD data feed address
+    function removeUSDDataFeed(address token, address dfAddress)
+        external
+        override
+        onlyOwnerOrRole(DATA_FEED_MANAGER_ROLE)
+    {
+        _removeDataFeed(_USD_STABLE_COIN, token, dfAddress);
     }
 
     /// @notice Remove a Native data feed of a token
     /// @dev Can only be called by the owner
-    /// @param _token The address of the token
-    /// @param _dfAddress The data feed address
-    function removeNativeDataFeed(address _token, address _dfAddress) external override onlyOwner {
-        _removeDataFeed(_WNATIVE, _token, _dfAddress);
+    /// @param token The address of the token
+    /// @param dfAddress The data feed address
+    function removeNativeDataFeed(address token, address dfAddress)
+        external
+        override
+        onlyOwnerOrRole(DATA_FEED_MANAGER_ROLE)
+    {
+        _removeDataFeed(_WNATIVE, token, dfAddress);
     }
 
     /// @notice Batch add USD data feed for each (token, data feed)
     /// @dev Can only be called by the owner
-    /// @param _tokens The addresses of the tokens
-    /// @param _dataFeeds The list of USD data feeds informations
-    function addUSDDataFeeds(address[] calldata _tokens, DataFeed[] calldata _dataFeeds) external override onlyOwner {
-        _addDataFeeds(_USDC, _tokens, _dataFeeds);
+    /// @param tokens The addresses of the tokens
+    /// @param dataFeeds The list of USD data feeds informations
+    function addUSDDataFeeds(address[] calldata tokens, DataFeed[] calldata dataFeeds)
+        external
+        override
+        onlyOwnerOrRole(DATA_FEED_MANAGER_ROLE)
+    {
+        _addDataFeeds(_USD_STABLE_COIN, tokens, dataFeeds);
     }
 
     /// @notice Batch add Native data feed for each (token, data feed)
     /// @dev Can only be called by the owner
-    /// @param _tokens The addresses of the tokens
-    /// @param _dataFeeds The list of Native data feeds informations
-    function addNativeDataFeeds(address[] calldata _tokens, DataFeed[] calldata _dataFeeds)
+    /// @param tokens The addresses of the tokens
+    /// @param dataFeeds The list of Native data feeds informations
+    function addNativeDataFeeds(address[] calldata tokens, DataFeed[] calldata dataFeeds)
         external
         override
-        onlyOwner
+        onlyOwnerOrRole(DATA_FEED_MANAGER_ROLE)
     {
-        _addDataFeeds(_WNATIVE, _tokens, _dataFeeds);
+        _addDataFeeds(_WNATIVE, tokens, dataFeeds);
     }
 
     /// @notice Batch set the USD weight for each (token, data feed)
     /// @dev Can only be called by the owner
-    /// @param _tokens The list of addresses of the tokens
-    /// @param _dfAddresses The list of USD data feed addresses
-    /// @param _newWeights The list of new weights of the data feeds
+    /// @param tokens The list of addresses of the tokens
+    /// @param dfAddresses The list of USD data feed addresses
+    /// @param newWeights The list of new weights of the data feeds
     function setUSDDataFeedsWeights(
-        address[] calldata _tokens,
-        address[] calldata _dfAddresses,
-        uint88[] calldata _newWeights
-    ) external override onlyOwner {
-        _setDataFeedsWeights(_USDC, _tokens, _dfAddresses, _newWeights);
+        address[] calldata tokens,
+        address[] calldata dfAddresses,
+        uint88[] calldata newWeights
+    ) external override onlyOwnerOrRole(DATA_FEED_MANAGER_ROLE) {
+        _setDataFeedsWeights(_USD_STABLE_COIN, tokens, dfAddresses, newWeights);
     }
 
     /// @notice Batch set the Native weight for each (token, data feed)
     /// @dev Can only be called by the owner
-    /// @param _tokens The list of addresses of the tokens
-    /// @param _dfAddresses The list of Native data feed addresses
-    /// @param _newWeights The list of new weights of the data feeds
+    /// @param tokens The list of addresses of the tokens
+    /// @param dfAddresses The list of Native data feed addresses
+    /// @param newWeights The list of new weights of the data feeds
     function setNativeDataFeedsWeights(
-        address[] calldata _tokens,
-        address[] calldata _dfAddresses,
-        uint88[] calldata _newWeights
-    ) external override onlyOwner {
-        _setDataFeedsWeights(_WNATIVE, _tokens, _dfAddresses, _newWeights);
+        address[] calldata tokens,
+        address[] calldata dfAddresses,
+        uint88[] calldata newWeights
+    ) external override onlyOwnerOrRole(DATA_FEED_MANAGER_ROLE) {
+        _setDataFeedsWeights(_WNATIVE, tokens, dfAddresses, newWeights);
     }
 
     /// @notice Batch remove a list of USD data feeds for each (token, data feed)
     /// @dev Can only be called by the owner
-    /// @param _tokens The list of addresses of the tokens
-    /// @param _dfAddresses The list of USD data feed addresses
-    function removeUSDDataFeeds(address[] calldata _tokens, address[] calldata _dfAddresses)
+    /// @param tokens The list of addresses of the tokens
+    /// @param dfAddresses The list of USD data feed addresses
+    function removeUSDDataFeeds(address[] calldata tokens, address[] calldata dfAddresses)
         external
         override
-        onlyOwner
+        onlyOwnerOrRole(DATA_FEED_MANAGER_ROLE)
     {
-        _removeDataFeeds(_USDC, _tokens, _dfAddresses);
+        _removeDataFeeds(_USD_STABLE_COIN, tokens, dfAddresses);
     }
 
     /// @notice Batch remove a list of Native data feeds for each (token, data feed)
     /// @dev Can only be called by the owner
-    /// @param _tokens The list of addresses of the tokens
-    /// @param _dfAddresses The list of Native data feed addresses
-    function removeNativeDataFeeds(address[] calldata _tokens, address[] calldata _dfAddresses)
+    /// @param tokens The list of addresses of the tokens
+    /// @param dfAddresses The list of Native data feed addresses
+    function removeNativeDataFeeds(address[] calldata tokens, address[] calldata dfAddresses)
         external
         override
-        onlyOwner
+        onlyOwnerOrRole(DATA_FEED_MANAGER_ROLE)
     {
-        _removeDataFeeds(_WNATIVE, _tokens, _dfAddresses);
+        _removeDataFeeds(_WNATIVE, tokens, dfAddresses);
     }
 
-    /** Private Functions **/
+    /**
+     * Private Functions *
+     */
 
     /// @notice Returns the data feed length for a specific collateral and a token
-    /// @param _collateral The address of the collateral (USDC or WNATIVE)
-    /// @param _token The address of the token
+    /// @param collateral The address of the collateral (USDC or WNATIVE)
+    /// @param token The address of the token
     /// @return length The number of data feeds
-    function _getDataFeedsLength(address _collateral, address _token) private view returns (uint256 length) {
-        return _whitelistedDataFeeds[_collateral][_token].dataFeeds.length;
+    function _getDataFeedsLength(address collateral, address token) private view returns (uint256 length) {
+        return _whitelistedDataFeeds[collateral][token].dataFeeds.length;
     }
 
-    /// @notice Returns the data feed at index `_index` for a specific collateral and a token
-    /// @param _collateral The address of the collateral (USDC or WNATIVE)
-    /// @param _token The address of the token
-    /// @param _index The index
-    /// @return dataFeed the data feed at index `_index`
-    function _getDataFeedAt(
-        address _collateral,
-        address _token,
-        uint256 _index
-    ) private view returns (DataFeed memory dataFeed) {
-        return _whitelistedDataFeeds[_collateral][_token].dataFeeds[_index];
+    /// @notice Returns the data feed at index `index` for a specific collateral and a token
+    /// @param collateral The address of the collateral (USDC or WNATIVE)
+    /// @param token The address of the token
+    /// @param index The index
+    /// @return dataFeed the data feed at index `index`
+    function _getDataFeedAt(address collateral, address token, uint256 index)
+        private
+        view
+        returns (DataFeed memory dataFeed)
+    {
+        return _whitelistedDataFeeds[collateral][token].dataFeeds[index];
     }
 
     /// @notice Returns if a (tokens)'s set contains the data feed address
-    /// @param _collateral The address of the collateral (USDC or WNATIVE)
-    /// @param _token The address of the token
-    /// @param _dfAddress The data feed address
+    /// @param collateral The address of the collateral (USDC or WNATIVE)
+    /// @param token The address of the token
+    /// @param dfAddress The data feed address
     /// @return Whether the set contains the data feed address (true) or not (false)
-    function _dataFeedContains(
-        address _collateral,
-        address _token,
-        address _dfAddress
-    ) private view returns (bool) {
-        return _whitelistedDataFeeds[_collateral][_token].indexes[_dfAddress] != 0;
+    function dataFeedContains(address collateral, address token, address dfAddress) private view returns (bool) {
+        return _whitelistedDataFeeds[collateral][token].indexes[dfAddress] != 0;
     }
 
     /// @notice Add a data feed to a set, return true if it was added, false if not
-    /// @param _collateral The address of the collateral (USDC or WNATIVE)
-    /// @param _token The address of the token
-    /// @param _dataFeed The data feeds information
+    /// @param collateral The address of the collateral (USDC or WNATIVE)
+    /// @param token The address of the token
+    /// @param dataFeed The data feeds information
     /// @return Whether the data feed was added (true) to the set or not (false)
-    function _addToSet(
-        address _collateral,
-        address _token,
-        DataFeed calldata _dataFeed
-    ) private returns (bool) {
-        if (!_dataFeedContains(_collateral, _token, _dataFeed.dfAddress)) {
-            DataFeedSet storage set = _whitelistedDataFeeds[_collateral][_token];
+    function _addToSet(address collateral, address token, DataFeed calldata dataFeed) private returns (bool) {
+        if (!dataFeedContains(collateral, token, dataFeed.dfAddress)) {
+            DataFeedSet storage set = _whitelistedDataFeeds[collateral][token];
 
-            set.dataFeeds.push(_dataFeed);
-            set.indexes[_dataFeed.dfAddress] = set.dataFeeds.length;
+            set.dataFeeds.push(dataFeed);
+            set.indexes[dataFeed.dfAddress] = set.dataFeeds.length;
             return true;
         } else {
             return false;
@@ -340,17 +369,13 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     }
 
     /// @notice Remove a data feed from a set, returns true if it was removed, false if not
-    /// @param _collateral The address of the collateral (USDC or WNATIVE)
-    /// @param _token The address of the token
-    /// @param _dfAddress The data feed address
+    /// @param collateral The address of the collateral (USDC or WNATIVE)
+    /// @param token The address of the token
+    /// @param dfAddress The data feed address
     /// @return Whether the data feed was removed (true) from the set or not (false)
-    function _removeFromSet(
-        address _collateral,
-        address _token,
-        address _dfAddress
-    ) private returns (bool) {
-        DataFeedSet storage set = _whitelistedDataFeeds[_collateral][_token];
-        uint256 dataFeedIndex = set.indexes[_dfAddress];
+    function _removeFromSet(address collateral, address token, address dfAddress) private returns (bool) {
+        DataFeedSet storage set = _whitelistedDataFeeds[collateral][token];
+        uint256 dataFeedIndex = set.indexes[dfAddress];
 
         if (dataFeedIndex != 0) {
             uint256 toDeleteIndex = dataFeedIndex - 1;
@@ -364,7 +389,7 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
             }
 
             set.dataFeeds.pop();
-            delete set.indexes[_dfAddress];
+            delete set.indexes[dfAddress];
 
             return true;
         } else {
@@ -373,31 +398,31 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     }
 
     /// @notice Add a data feed to a set, revert if it couldn't add it
-    /// @param _collateral The address of the collateral (USDC or WNATIVE)
-    /// @param _token The address of the token
-    /// @param _dataFeed The data feeds information
-    function _addDataFeed(
-        address _collateral,
-        address _token,
-        DataFeed calldata _dataFeed
-    ) private verifyDataFeed(_collateral, _token, _dataFeed) verifyWeight(_dataFeed.dfWeight) {
-        if (!_addToSet(_collateral, _token, _dataFeed))
-            revert JoeDexLens__DataFeedAlreadyAdded(_collateral, _token, _dataFeed.dfAddress);
+    /// @param collateral The address of the collateral (USDC or WNATIVE)
+    /// @param token The address of the token
+    /// @param dataFeed The data feeds information
+    function _addDataFeed(address collateral, address token, DataFeed calldata dataFeed)
+        private
+        verifyDataFeed(collateral, token, dataFeed)
+        verifyWeight(dataFeed.dfWeight)
+    {
+        if (!_addToSet(collateral, token, dataFeed)) {
+            revert JoeDexLens__DataFeedAlreadyAdded(collateral, token, dataFeed.dfAddress);
+        }
 
-        emit DataFeedAdded(_collateral, _token, _dataFeed);
+        emit DataFeedAdded(collateral, token, dataFeed);
     }
 
-    /// @notice Batch add data feed for each (_collateral, token, data feed)
-    /// @param _collateral The address of the collateral (USDC or WNATIVE)
-    /// @param _tokens The addresses of the tokens
-    /// @param _dataFeeds The list of USD data feeds informations
-    function _addDataFeeds(
-        address _collateral,
-        address[] calldata _tokens,
-        DataFeed[] calldata _dataFeeds
-    ) private verifyLengths(_tokens.length, _dataFeeds.length) {
-        for (uint256 i; i < _tokens.length; ) {
-            _addDataFeed(_collateral, _tokens[i], _dataFeeds[i]);
+    /// @notice Batch add data feed for each (collateral, token, data feed)
+    /// @param collateral The address of the collateral (USDC or WNATIVE)
+    /// @param tokens The addresses of the tokens
+    /// @param dataFeeds The list of USD data feeds informations
+    function _addDataFeeds(address collateral, address[] calldata tokens, DataFeed[] calldata dataFeeds)
+        private
+        verifyLengths(tokens.length, dataFeeds.length)
+    {
+        for (uint256 i; i < tokens.length;) {
+            _addDataFeed(collateral, tokens[i], dataFeeds[i]);
 
             unchecked {
                 ++i;
@@ -406,40 +431,38 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     }
 
     /// @notice Set the weight for a specific data feed of a (collateral, token)
-    /// @param _collateral The address of the collateral (USDC or WNATIVE)
-    /// @param _token The address of the token
-    /// @param _dfAddress The data feed address
-    /// @param _newWeight The new weight of the data feed
-    function _setDataFeedWeight(
-        address _collateral,
-        address _token,
-        address _dfAddress,
-        uint88 _newWeight
-    ) private verifyWeight(_newWeight) {
-        DataFeedSet storage set = _whitelistedDataFeeds[_collateral][_token];
+    /// @param collateral The address of the collateral (USDC or WNATIVE)
+    /// @param token The address of the token
+    /// @param dfAddress The data feed address
+    /// @param newWeight The new weight of the data feed
+    function _setDataFeedWeight(address collateral, address token, address dfAddress, uint88 newWeight)
+        private
+        verifyWeight(newWeight)
+    {
+        DataFeedSet storage set = _whitelistedDataFeeds[collateral][token];
 
-        uint256 index = set.indexes[_dfAddress];
+        uint256 index = set.indexes[dfAddress];
 
-        if (index == 0) revert JoeDexLens__DataFeedNotInSet(_collateral, _token, _dfAddress);
+        if (index == 0) revert JoeDexLens__DataFeedNotInSet(collateral, token, dfAddress);
 
-        set.dataFeeds[index - 1].dfWeight = _newWeight;
+        set.dataFeeds[index - 1].dfWeight = newWeight;
 
-        emit DataFeedsWeightSet(_collateral, _token, _dfAddress, _newWeight);
+        emit DataFeedsWeightSet(collateral, token, dfAddress, newWeight);
     }
 
-    /// @notice Batch set the weight for each (_collateral, token, data feed)
-    /// @param _collateral The address of the collateral (USDC or WNATIVE)
-    /// @param _tokens The list of addresses of the tokens
-    /// @param _dfAddresses The list of USD data feed addresses
-    /// @param _newWeights The list of new weights of the data feeds
+    /// @notice Batch set the weight for each (collateral, token, data feed)
+    /// @param collateral The address of the collateral (USDC or WNATIVE)
+    /// @param tokens The list of addresses of the tokens
+    /// @param dfAddresses The list of USD data feed addresses
+    /// @param newWeights The list of new weights of the data feeds
     function _setDataFeedsWeights(
-        address _collateral,
-        address[] calldata _tokens,
-        address[] calldata _dfAddresses,
-        uint88[] calldata _newWeights
-    ) private verifyLengths(_tokens.length, _dfAddresses.length) verifyLengths(_tokens.length, _newWeights.length) {
-        for (uint256 i; i < _tokens.length; ) {
-            _setDataFeedWeight(_collateral, _tokens[i], _dfAddresses[i], _newWeights[i]);
+        address collateral,
+        address[] calldata tokens,
+        address[] calldata dfAddresses,
+        uint88[] calldata newWeights
+    ) private verifyLengths(tokens.length, dfAddresses.length) verifyLengths(tokens.length, newWeights.length) {
+        for (uint256 i; i < tokens.length;) {
+            _setDataFeedWeight(collateral, tokens[i], dfAddresses[i], newWeights[i]);
 
             unchecked {
                 ++i;
@@ -448,31 +471,27 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
     }
 
     /// @notice Remove a data feed from a set, revert if it couldn't remove it
-    /// @param _collateral The address of the collateral (USDC or WNATIVE)
-    /// @param _token The address of the token
-    /// @param _dfAddress The data feed address
-    function _removeDataFeed(
-        address _collateral,
-        address _token,
-        address _dfAddress
-    ) private {
-        if (!_removeFromSet(_collateral, _token, _dfAddress))
-            revert JoeDexLens__DataFeedNotInSet(_collateral, _token, _dfAddress);
+    /// @param collateral The address of the collateral (USDC or WNATIVE)
+    /// @param token The address of the token
+    /// @param dfAddress The data feed address
+    function _removeDataFeed(address collateral, address token, address dfAddress) private {
+        if (!_removeFromSet(collateral, token, dfAddress)) {
+            revert JoeDexLens__DataFeedNotInSet(collateral, token, dfAddress);
+        }
 
-        emit DataFeedRemoved(_collateral, _token, _dfAddress);
+        emit DataFeedRemoved(collateral, token, dfAddress);
     }
 
     /// @notice Batch remove a list of collateral data feeds for each (token, data feed)
-    /// @param _collateral The address of the collateral (USDC or WNATIVE)
-    /// @param _tokens The list of addresses of the tokens
-    /// @param _dfAddresses The list of USD data feed addresses
-    function _removeDataFeeds(
-        address _collateral,
-        address[] calldata _tokens,
-        address[] calldata _dfAddresses
-    ) private verifyLengths(_tokens.length, _dfAddresses.length) {
-        for (uint256 i; i < _tokens.length; ) {
-            _removeDataFeed(_collateral, _tokens[i], _dfAddresses[i]);
+    /// @param collateral The address of the collateral (USDC or WNATIVE)
+    /// @param tokens The list of addresses of the tokens
+    /// @param dfAddresses The list of USD data feed addresses
+    function _removeDataFeeds(address collateral, address[] calldata tokens, address[] calldata dfAddresses)
+        private
+        verifyLengths(tokens.length, dfAddresses.length)
+    {
+        for (uint256 i; i < tokens.length;) {
+            _removeDataFeed(collateral, tokens[i], dfAddresses[i]);
 
             unchecked {
                 ++i;
@@ -482,28 +501,47 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
 
     /// @notice Return the weighted average price of a token using its collateral data feeds
     /// @dev If no data feed was provided, will use V1 TOKEN/Native and USDC/TOKEN pools to calculate the price of the token
-    /// @param _collateral The address of the collateral (USDC or WNATIVE)
-    /// @param _token The address of the token
+    /// @param collateral The address of the collateral (USDC or WNATIVE)
+    /// @param token The address of the token
     /// @return price The weighted average price of the token, with the collateral's decimals
-    function _getTokenWeightedAveragePrice(address _collateral, address _token) private view returns (uint256 price) {
-        uint256 decimals = IERC20Metadata(_collateral).decimals();
-        if (_collateral == _token) return 10**decimals;
+    function _getTokenWeightedAveragePrice(address collateral, address token) private view returns (uint256 price) {
+        uint256 decimals = IERC20Metadata(collateral).decimals();
+        if (collateral == token) return 10 ** decimals;
 
-        uint256 length = _getDataFeedsLength(_collateral, _token);
-        if (length == 0) return _getPriceAnyToken(_collateral, _token);
+        uint256 length = _getDataFeedsLength(collateral, token);
+
+        if (length == 0) {
+            // fallback on other collateral
+            address otherCollateral = collateral == _WNATIVE ? _USD_STABLE_COIN : _WNATIVE;
+
+            uint256 lengthOtherCollateral = _getDataFeedsLength(otherCollateral, token);
+            uint256 lengthCollateral = _getDataFeedsLength(otherCollateral, collateral);
+
+            if (lengthOtherCollateral == 0 || lengthCollateral == 0) {
+                return _getPriceAnyToken(collateral, token);
+            }
+
+            uint256 tokenPrice = _getTokenWeightedAveragePrice(otherCollateral, token);
+            uint256 collateralPrice = _getTokenWeightedAveragePrice(otherCollateral, collateral);
+
+            // Both price are in the same decimals
+            return tokenPrice * 10 ** decimals / collateralPrice;
+        }
 
         uint256 dfPrice;
         uint256 totalWeights;
-        for (uint256 i; i < length; ) {
-            DataFeed memory dataFeed = _getDataFeedAt(_collateral, _token, i);
+        for (uint256 i; i < length;) {
+            DataFeed memory dataFeed = _getDataFeedAt(collateral, token, i);
 
             if (dataFeed.dfType == dfType.V1) {
-                dfPrice = _getPriceFromV1(dataFeed.dfAddress, _token);
+                dfPrice = _getPriceFromV1(dataFeed.dfAddress, token);
             } else if (dataFeed.dfType == dfType.V2) {
-                dfPrice = _getPriceFromV2(dataFeed.dfAddress, _token);
+                dfPrice = _getPriceFromV2(dataFeed.dfAddress, token);
             } else if (dataFeed.dfType == dfType.CHAINLINK) {
                 dfPrice = _getPriceFromChainlink(dataFeed.dfAddress);
-            } else revert JoeDexLens__UnknownDataFeedType();
+            } else {
+                revert JoeDexLens__UnknownDataFeedType();
+            }
 
             price += dfPrice * dataFeed.dfWeight;
             totalWeights += dataFeed.dfWeight;
@@ -516,23 +554,23 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         price /= totalWeights;
 
         // Return the price with the collateral's decimals
-        if (decimals < DECIMALS) price /= 10**(DECIMALS - decimals);
-        else if (decimals > DECIMALS) price *= 10**(decimals - DECIMALS);
+        if (decimals < _DECIMALS) price /= 10 ** (_DECIMALS - decimals);
+        else if (decimals > _DECIMALS) price *= 10 ** (decimals - _DECIMALS);
     }
 
     /// @notice Batch function to return the weighted average price of each tokens using its collateral data feeds
     /// @dev If no data feed was provided, will use V1 TOKEN/Native and USDC/TOKEN pools to calculate the price of the token
-    /// @param _collateral The address of the collateral (USDC or WNATIVE)
-    /// @param _tokens The list of addresses of the tokens
+    /// @param collateral The address of the collateral (USDC or WNATIVE)
+    /// @param tokens The list of addresses of the tokens
     /// @return prices The list of weighted average price of each token, with the collateral's decimals
-    function _getTokenWeightedAveragePrices(address _collateral, address[] calldata _tokens)
+    function _getTokenWeightedAveragePrices(address collateral, address[] calldata tokens)
         private
         view
         returns (uint256[] memory prices)
     {
-        prices = new uint256[](_tokens.length);
-        for (uint256 i; i < _tokens.length; ) {
-            prices[i] = _getTokenWeightedAveragePrice(_collateral, _tokens[i]);
+        prices = new uint256[](tokens.length);
+        for (uint256 i; i < tokens.length;) {
+            prices[i] = _getTokenWeightedAveragePrice(collateral, tokens[i]);
 
             unchecked {
                 ++i;
@@ -540,31 +578,31 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         }
     }
 
-    /// @notice Return the price tracked by the aggreagator using chainlink's data feed, with `DECIMALS` decimals
-    /// @param _dfAddress The address of the data feed
-    /// @return price The price tracked by the aggreagator, with `DECIMALS` decimals
-    function _getPriceFromChainlink(address _dfAddress) private view returns (uint256 price) {
-        AggregatorV3Interface aggregator = AggregatorV3Interface(_dfAddress);
+    /// @notice Return the price tracked by the aggreagator using chainlink's data feed, with `_DECIMALS` decimals
+    /// @param dfAddress The address of the data feed
+    /// @return price The price tracked by the aggreagator, with `_DECIMALS` decimals
+    function _getPriceFromChainlink(address dfAddress) private view returns (uint256 price) {
+        AggregatorV3Interface aggregator = AggregatorV3Interface(dfAddress);
 
-        (, int256 sPrice, , , ) = aggregator.latestRoundData();
+        (, int256 sPrice,,,) = aggregator.latestRoundData();
         if (sPrice <= 0) revert JoeDexLens__InvalidChainLinkPrice();
 
         price = uint256(sPrice);
 
         uint256 aggregatorDecimals = aggregator.decimals();
 
-        // Return the price with `DECIMALS` decimals
-        if (aggregatorDecimals < DECIMALS) price *= 10**(DECIMALS - aggregatorDecimals);
-        else if (aggregatorDecimals > DECIMALS) price /= 10**(aggregatorDecimals - DECIMALS);
+        // Return the price with `_DECIMALS` decimals
+        if (aggregatorDecimals < _DECIMALS) price *= 10 ** (_DECIMALS - aggregatorDecimals);
+        else if (aggregatorDecimals > _DECIMALS) price /= 10 ** (aggregatorDecimals - _DECIMALS);
     }
 
-    /// @notice Return the price of the token denominated in the second token of the V1 pair, with `DECIMALS` decimals
+    /// @notice Return the price of the token denominated in the second token of the V1 pair, with `_DECIMALS` decimals
     /// @dev The `token` token needs to be on of the two paired token of the given pair
-    /// @param _pairAddress The address of the pair
-    /// @param _token The address of the token
-    /// @return price The price of the token, with `DECIMALS` decimals
-    function _getPriceFromV1(address _pairAddress, address _token) private view returns (uint256 price) {
-        IJoePair pair = IJoePair(_pairAddress);
+    /// @param pairAddress The address of the pair
+    /// @param token The address of the token
+    /// @return price The price of the token, with `_DECIMALS` decimals
+    function _getPriceFromV1(address pairAddress, address token) private view returns (uint256 price) {
+        IJoePair pair = IJoePair(pairAddress);
 
         address token0 = pair.token0();
         address token1 = pair.token1();
@@ -572,25 +610,27 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         uint256 decimals0 = IERC20Metadata(token0).decimals();
         uint256 decimals1 = IERC20Metadata(token1).decimals();
 
-        (uint256 reserve0, uint256 reserve1, ) = pair.getReserves();
+        (uint256 reserve0, uint256 reserve1,) = pair.getReserves();
 
-        // Return the price with `DECIMALS` decimals
-        if (_token == token0) {
-            return (reserve1 * 10**(decimals0 + DECIMALS)) / (reserve0 * 10**decimals1);
-        } else if (_token == token1) {
-            return (reserve0 * 10**(decimals1 + DECIMALS)) / (reserve1 * 10**decimals0);
-        } else revert JoeDexLens__WrongPair();
+        // Return the price with `_DECIMALS` decimals
+        if (token == token0) {
+            return (reserve1 * 10 ** (decimals0 + _DECIMALS)) / (reserve0 * 10 ** decimals1);
+        } else if (token == token1) {
+            return (reserve0 * 10 ** (decimals1 + _DECIMALS)) / (reserve1 * 10 ** decimals0);
+        } else {
+            revert JoeDexLens__WrongPair();
+        }
     }
 
-    /// @notice Return the price of the token denominated in the second token of the V2 pair, with `DECIMALS` decimals
+    /// @notice Return the price of the token denominated in the second token of the V2 pair, with `_DECIMALS` decimals
     /// @dev The `token` token needs to be on of the two paired token of the given pair
-    /// @param _pairAddress The address of the pair
-    /// @param _token The address of the token
-    /// @return price The price of the token, with `DECIMALS` decimals
-    function _getPriceFromV2(address _pairAddress, address _token) private view returns (uint256 price) {
-        ILBPair pair = ILBPair(_pairAddress);
+    /// @param pairAddress The address of the pair
+    /// @param token The address of the token
+    /// @return price The price of the token, with `_DECIMALS` decimals
+    function _getPriceFromV2(address pairAddress, address token) private view returns (uint256 price) {
+        ILBPair pair = ILBPair(pairAddress);
 
-        (, , uint256 activeID) = pair.getReservesAndId();
+        (,, uint256 activeID) = pair.getReservesAndId();
         uint256 priceScaled = _ROUTER_V2.getPriceFromId(pair, uint24(activeID));
 
         address tokenX = address(pair.tokenX());
@@ -599,115 +639,118 @@ contract JoeDexLens is PendingOwnable, IJoeDexLens {
         uint256 decimalsX = IERC20Metadata(tokenX).decimals();
         uint256 decimalsY = IERC20Metadata(tokenY).decimals();
 
-        // Return the price with `DECIMALS` decimals
-        if (_token == tokenX) {
-            return priceScaled.mulShiftRoundDown(10**(18 + decimalsX - decimalsY), Constants.SCALE_OFFSET);
-        } else if (_token == tokenY) {
-            return
-                (type(uint256).max / priceScaled).mulShiftRoundDown(
-                    10**(18 + decimalsY - decimalsX),
-                    Constants.SCALE_OFFSET
-                );
-        } else revert JoeDexLens__WrongPair();
+        // Return the price with `_DECIMALS` decimals
+        if (token == tokenX) {
+            return priceScaled.mulShiftRoundDown(10 ** (18 + decimalsX - decimalsY), Constants.SCALE_OFFSET);
+        } else if (token == tokenY) {
+            return (type(uint256).max / priceScaled).mulShiftRoundDown(
+                10 ** (18 + decimalsY - decimalsX), Constants.SCALE_OFFSET
+            );
+        } else {
+            revert JoeDexLens__WrongPair();
+        }
     }
 
     /// @notice Return the addresses of the two tokens of a pair
     /// @dev Work with both V1 or V2 pairs
-    /// @param _dataFeed The data feeds information
+    /// @param dataFeed The data feeds information
     /// @return tokenA The address of the first token of the pair
     /// @return tokenB The address of the second token of the pair
-    function _getTokens(DataFeed calldata _dataFeed) private view returns (address tokenA, address tokenB) {
-        if (_dataFeed.dfType == dfType.V1) {
-            IJoePair pair = IJoePair(_dataFeed.dfAddress);
+    function _getTokens(DataFeed calldata dataFeed) private view returns (address tokenA, address tokenB) {
+        if (dataFeed.dfType == dfType.V1) {
+            IJoePair pair = IJoePair(dataFeed.dfAddress);
 
             tokenA = pair.token0();
             tokenB = pair.token1();
-        } else if (_dataFeed.dfType == dfType.V2) {
-            ILBPair pair = ILBPair(_dataFeed.dfAddress);
+        } else if (dataFeed.dfType == dfType.V2) {
+            ILBPair pair = ILBPair(dataFeed.dfAddress);
 
             tokenA = address(pair.tokenX());
             tokenB = address(pair.tokenY());
-        } else revert JoeDexLens__UnknownDataFeedType();
+        } else {
+            revert JoeDexLens__UnknownDataFeedType();
+        }
     }
 
-    /// @notice Return the price of a token using TOKEN/Native and TOKEN/USDC V1 pairs, with `DECIMALS` decimals
+    /// @notice Return the price of a token using TOKEN/Native and TOKEN/USDC V1 pairs, with `_DECIMALS` decimals
     /// @dev If only one pair is available, will return the price on this pair, and will revert if no pools were created
-    /// @param _collateral The address of the collateral (USDC or WNATIVE)
-    /// @param _token The address of the token
+    /// @param collateral The address of the collateral (USDC or WNATIVE)
+    /// @param token The address of the token
     /// @return price The weighted average, based on pair's liquidity, of the token with the collateral's decimals
-    function _getPriceAnyToken(address _collateral, address _token) private view returns (uint256 price) {
-        address pairTokenWNative = _FACTORY_V1.getPair(_token, _WNATIVE);
-        address pairTokenUsdc = _FACTORY_V1.getPair(_token, _USDC);
+    function _getPriceAnyToken(address collateral, address token) private view returns (uint256 price) {
+        address pairTokenWNative = _FACTORY_V1.getPair(token, _WNATIVE);
+        address pairTokenUsdc = _FACTORY_V1.getPair(token, _USD_STABLE_COIN);
 
         if (pairTokenWNative != address(0) && pairTokenUsdc != address(0)) {
-            uint256 priceOfNative = _getTokenWeightedAveragePrice(_collateral, _WNATIVE);
-            uint256 priceOfUSDC = _getTokenWeightedAveragePrice(_collateral, _USDC);
+            uint256 priceOfNative = _getTokenWeightedAveragePrice(collateral, _WNATIVE);
+            uint256 priceOfUSDC = _getTokenWeightedAveragePrice(collateral, _USD_STABLE_COIN);
 
-            uint256 priceInUSDC = _getPriceFromV1(pairTokenUsdc, _token);
-            uint256 priceInNative = _getPriceFromV1(pairTokenWNative, _token);
+            uint256 priceInUSDC = _getPriceFromV1(pairTokenUsdc, token);
+            uint256 priceInNative = _getPriceFromV1(pairTokenWNative, token);
 
-            uint256 totalReserveInUSDC = _getReserveInTokenAFromV1(pairTokenUsdc, _USDC, _token);
-            uint256 totalReserveinWNative = _getReserveInTokenAFromV1(pairTokenWNative, _WNATIVE, _token);
+            uint256 totalReserveInUSDC = _getReserveInTokenAFromV1(pairTokenUsdc, _USD_STABLE_COIN, token);
+            uint256 totalReserveinWNative = _getReserveInTokenAFromV1(pairTokenWNative, _WNATIVE, token);
 
-            uint256 weightUSDC = (totalReserveInUSDC * priceOfUSDC) / PRECISION;
-            uint256 weightWNative = (totalReserveinWNative * priceOfNative) / PRECISION;
+            uint256 weightUSDC = (totalReserveInUSDC * priceOfUSDC) / _PRECISION;
+            uint256 weightWNative = (totalReserveinWNative * priceOfNative) / _PRECISION;
 
             uint256 totalWeights;
-            uint256 weightedPriceUSDC = (priceInUSDC * priceOfUSDC * weightUSDC) / PRECISION;
+            uint256 weightedPriceUSDC = (priceInUSDC * priceOfUSDC * weightUSDC) / _PRECISION;
             if (weightedPriceUSDC != 0) totalWeights += weightUSDC;
 
-            uint256 weightedPriceNative = (priceInNative * priceOfNative * weightWNative) / PRECISION;
+            uint256 weightedPriceNative = (priceInNative * priceOfNative * weightWNative) / _PRECISION;
             if (weightedPriceNative != 0) totalWeights += weightWNative;
 
             if (totalWeights == 0) revert JoeDexLens__NotEnoughLiquidity();
 
             return (weightedPriceUSDC + weightedPriceNative) / totalWeights;
         } else if (pairTokenWNative != address(0)) {
-            return _getPriceInCollateralFromV1(_collateral, pairTokenWNative, _WNATIVE, _token);
+            return _getPriceInCollateralFromV1(collateral, pairTokenWNative, _WNATIVE, token);
         } else if (pairTokenUsdc != address(0)) {
-            return _getPriceInCollateralFromV1(_collateral, pairTokenUsdc, _USDC, _token);
-        } else revert JoeDexLens__PairsNotCreated();
+            return _getPriceInCollateralFromV1(collateral, pairTokenUsdc, _USD_STABLE_COIN, token);
+        } else {
+            revert JoeDexLens__PairsNotCreated();
+        }
     }
 
     /// @notice Return the price in collateral of a token from a V1 pair
-    /// @param _collateral The address of the collateral (USDC or WNATIVE)
-    /// @param _pairAddress The address of the V1 pair
-    /// @param _tokenBase The address of the base token of the pair, i.e. the collateral one
-    /// @param _token The address of the token
+    /// @param collateral The address of the collateral (USDC or WNATIVE)
+    /// @param pairAddress The address of the V1 pair
+    /// @param tokenBase The address of the base token of the pair, i.e. the collateral one
+    /// @param token The address of the token
     /// @return priceInCollateral The price of the token in collateral, with the collateral's decimals
-    function _getPriceInCollateralFromV1(
-        address _collateral,
-        address _pairAddress,
-        address _tokenBase,
-        address _token
-    ) private view returns (uint256 priceInCollateral) {
-        uint256 priceInBase = _getPriceFromV1(_pairAddress, _token);
-        uint256 priceOfBase = _getTokenWeightedAveragePrice(_collateral, _tokenBase);
+    function _getPriceInCollateralFromV1(address collateral, address pairAddress, address tokenBase, address token)
+        private
+        view
+        returns (uint256 priceInCollateral)
+    {
+        uint256 priceInBase = _getPriceFromV1(pairAddress, token);
+        uint256 priceOfBase = _getTokenWeightedAveragePrice(collateral, tokenBase);
 
         // Return the price with the collateral's decimals
-        return (priceInBase * priceOfBase) / PRECISION;
+        return (priceInBase * priceOfBase) / _PRECISION;
     }
 
-    /// @notice Return the entire TVL of a pair in token A, with `DECIMALS` decimals
+    /// @notice Return the entire TVL of a pair in token A, with `_DECIMALS` decimals
     /// @dev tokenA and tokenB needs to be the two tokens paired in the given pair
-    /// @param _pairAddress The address of the pair
-    /// @param _tokenA The address of one of the pair's token
-    /// @param _tokenB The address of the other pair's token
+    /// @param pairAddress The address of the pair
+    /// @param tokenA The address of one of the pair's token
+    /// @param tokenB The address of the other pair's token
     /// @return totalReserveInTokenA The total reserve of the pool in token A
-    function _getReserveInTokenAFromV1(
-        address _pairAddress,
-        address _tokenA,
-        address _tokenB
-    ) private view returns (uint256 totalReserveInTokenA) {
-        IJoePair pair = IJoePair(_pairAddress);
+    function _getReserveInTokenAFromV1(address pairAddress, address tokenA, address tokenB)
+        private
+        view
+        returns (uint256 totalReserveInTokenA)
+    {
+        IJoePair pair = IJoePair(pairAddress);
 
-        (uint256 reserve0, uint256 reserve1, ) = pair.getReserves();
-        uint8 decimals = IERC20Metadata(_tokenA).decimals();
+        (uint256 reserve0, uint256 reserve1,) = pair.getReserves();
+        uint8 decimals = IERC20Metadata(tokenA).decimals();
 
-        if (_tokenA < _tokenB) totalReserveInTokenA = reserve0 * 2;
+        if (tokenA < tokenB) totalReserveInTokenA = reserve0 * 2;
         else totalReserveInTokenA = reserve1 * 2;
 
-        if (decimals < DECIMALS) totalReserveInTokenA *= 10**(DECIMALS - decimals);
-        else if (decimals > DECIMALS) totalReserveInTokenA /= 10**(decimals - DECIMALS);
+        if (decimals < _DECIMALS) totalReserveInTokenA *= 10 ** (_DECIMALS - decimals);
+        else if (decimals > _DECIMALS) totalReserveInTokenA /= 10 ** (decimals - _DECIMALS);
     }
 }

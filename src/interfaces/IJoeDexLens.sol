@@ -4,15 +4,28 @@ pragma solidity ^0.8.0;
 
 import "joe-v2/interfaces/ILBRouter.sol";
 import "joe-v2/interfaces/IJoeFactory.sol";
-import "joe-v2/interfaces/IPendingOwnable.sol";
+import "solrary/access/ISafeAccessControlEnumerable.sol";
 
-import "../JoeDexLensErrors.sol";
 import "../interfaces/AggregatorV3Interface.sol";
+import "joe-v2/LBErrors.sol";
 
 /// @title Interface of the Joe Dex Lens contract
 /// @author Trader Joe
 /// @notice The interface needed to interract with the Joe Dex Lens contract
-interface IJoeDexLens is IPendingOwnable {
+interface IJoeDexLens is ISafeAccessControlEnumerable {
+    error JoeDexLens__PairsNotCreated();
+    error JoeDexLens__UnknownDataFeedType();
+    error JoeDexLens__CollateralNotInPair(address pair, address collateral);
+    error JoeDexLens__TokenNotInPair(address pair, address token);
+    error JoeDexLens__SameTokens();
+    error JoeDexLens__DataFeedAlreadyAdded(address colateral, address token, address dataFeed);
+    error JoeDexLens__DataFeedNotInSet(address colateral, address token, address dataFeed);
+    error JoeDexLens__LengthsMismatch();
+    error JoeDexLens__NullWeight();
+    error JoeDexLens__WrongPair();
+    error JoeDexLens__InvalidChainLinkPrice();
+    error JoeDexLens__NotEnoughLiquidity();
+
     /// @notice Enumerators of the different data feed types
     enum dfType {
         V1,
@@ -43,6 +56,10 @@ interface IJoeDexLens is IPendingOwnable {
 
     event DataFeedRemoved(address collateral, address token, address dfAddress);
 
+    function getWNative() external view returns (address wNative);
+
+    function getUSDStableCoin() external view returns (address usd);
+
     function getRouterV2() external view returns (ILBRouter routerV2);
 
     function getFactoryV1() external view returns (IJoeFactory factoryV1);
@@ -63,17 +80,9 @@ interface IJoeDexLens is IPendingOwnable {
 
     function addNativeDataFeed(address token, DataFeed calldata dataFeed) external;
 
-    function setUSDDataFeedWeight(
-        address token,
-        address dfAddress,
-        uint88 newWeight
-    ) external;
+    function setUSDDataFeedWeight(address token, address dfAddress, uint88 newWeight) external;
 
-    function setNativeDataFeedWeight(
-        address token,
-        address dfAddress,
-        uint88 newWeight
-    ) external;
+    function setNativeDataFeedWeight(address token, address dfAddress, uint88 newWeight) external;
 
     function removeUSDDataFeed(address token, address dfAddress) external;
 

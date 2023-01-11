@@ -36,19 +36,19 @@ contract TestV2Prices is TestHelper {
         uint8 decimalsUSDC = IERC20Metadata(USDC).decimals();
         uint8 decimalsWNative = IERC20Metadata(wNative).decimals();
 
-        assertEq(10**decimalsUSDC, priceUSDC);
-        assertEq(10**decimalsWNative, priceWNative);
+        assertEq(10 ** decimalsUSDC, priceUSDC);
+        assertEq(10 ** decimalsWNative, priceWNative);
     }
 
     function testV2PriceUSDC_USDT() public {
         ILBPair pair = ILBPair(USDCUSDT1bps);
 
-        (, , uint256 id) = pair.getReservesAndId();
+        (,, uint256 id) = pair.getReservesAndId();
 
         uint256 price128x128 = LBRouter.getPriceFromId(pair, uint24(id));
 
         uint8 decimalsX = IERC20Metadata(USDT).decimals();
-        uint256 priceReal = ((price128x128 * 10**decimalsX) >> 128);
+        uint256 priceReal = ((price128x128 * 10 ** decimalsX) >> 128);
 
         addUSDDataFeed(USDT, USDCUSDT1bps);
         uint256 priceLens = joeDexLens.getTokenPriceUSD(USDT);
@@ -59,12 +59,12 @@ contract TestV2Prices is TestHelper {
     function testV2PriceNativeUSDC10bps() public {
         ILBPair pair = ILBPair(NativeUSDC10bps);
 
-        (, , uint256 id) = pair.getReservesAndId();
+        (,, uint256 id) = pair.getReservesAndId();
 
         uint256 price128x128 = LBRouter.getPriceFromId(pair, uint24(id));
 
         uint8 decimalsX = IERC20Metadata(wNative).decimals();
-        uint256 priceReal = (price128x128 * 10**decimalsX) >> 128;
+        uint256 priceReal = (price128x128 * 10 ** decimalsX) >> 128;
 
         addUSDDataFeed(wNative, NativeUSDC10bps);
         uint256 priceLens = joeDexLens.getTokenPriceUSD(wNative);
