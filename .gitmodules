@@ -7,3 +7,6 @@
 [submodule "lib/joe-v2"]
 	path = lib/joe-v2
 	url = https://github.com/traderjoe-xyz/joe-v2
+[submodule "lib/solrary"]
+	path = lib/solrary
+	url = https://github.com/0x0louis/solrary
