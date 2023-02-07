@@ -6,7 +6,6 @@ import "forge-std/Test.sol";
 import "joe-v2/interfaces/ILBRouter.sol";
 import "joe-v2/interfaces/ILBFactory.sol";
 import "joe-v2/interfaces/IJoeRouter02.sol";
-import "joe-v2/LBErrors.sol";
 import "openzeppelin/token/ERC20/IERC20.sol";
 
 import "../src/JoeDexLens.sol";
@@ -14,7 +13,7 @@ import "../src/interfaces/AggregatorV3Interface.sol";
 import "./mocks/ERC20MockDecimals.sol";
 
 abstract contract TestHelper is Test {
-    using Math512Bits for uint256;
+    using Uint256x256Math for uint256;
 
     address payable internal immutable DEV = payable(address(this));
     address internal immutable ALICE = address(bytes20(bytes32(keccak256(bytes("ALICE")))));
@@ -25,8 +24,8 @@ abstract contract TestHelper is Test {
     address public constant tokenOwner = 0xFFC08538077a0455E0F4077823b1A0E3e18Faf0b;
     address public constant factoryOwner = 0x4f029B3faA0fE6405Ae6eBA5795293688cf69c2e;
 
-    ILBFactory public constant LBFactory = ILBFactory(0x2950b9bd19152C91d69227364747b3e6EFC8Ab7F);
-    ILBRouter public constant LBRouter = ILBRouter(0x0C344c52841d3F8d488E1CcDBafB42CE2C7fdFA9);
+    ILBLegacyFactory public constant LBLegacyFactory = ILBLegacyFactory(0x2950b9bd19152C91d69227364747b3e6EFC8Ab7F);
+    ILBLegacyRouter public constant LBLegacyRouter = ILBLegacyRouter(0x0C344c52841d3F8d488E1CcDBafB42CE2C7fdFA9);
     IJoeFactory public constant joeFactory = IJoeFactory(0xF5c7d9733e5f53abCC1695820c4818C59B457C2C);
 
     address public constant LBQuoter = 0x0C926BF1E71725eD68AE3041775e9Ba29142dca9;
@@ -47,7 +46,7 @@ abstract contract TestHelper is Test {
     JoeDexLens public joeDexLens;
 
     function createPairAndAddToUSDDataFeeds(address tokenX, address tokenY, uint24 id) internal {
-        ILBPair pair = LBRouter.createLBPair(IERC20(tokenX), IERC20(tokenY), id, DEFAULT_BIN_STEP);
+        ILBLegacyPair pair = LBLegacyRouter.createLBPair(IERC20(tokenX), IERC20(tokenY), id, DEFAULT_BIN_STEP);
 
         IJoeDexLens.DataFeed memory dataFeed = IJoeDexLens.DataFeed(address(pair), 1e18, IJoeDexLens.dfType.V2);
 

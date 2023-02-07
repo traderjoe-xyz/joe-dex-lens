@@ -10,7 +10,7 @@ import "./TestHelper.sol";
 contract TestJoeDexLens2 is TestHelper {
     function setUp() public {
         vm.createSelectFork(vm.rpcUrl("fuji"), 14884890);
-        joeDexLens = new JoeDexLens(ILBRouter(LBRouter), IJoeFactory(factoryV1), wNative, USDC);
+        joeDexLens = new JoeDexLens(LBLegacyRouter, IJoeFactory(factoryV1), wNative, USDC);
     }
 
     function testPriceOnSameV1Pair() public {
@@ -86,7 +86,7 @@ contract TestJoeDexLens2 is TestHelper {
 
         vm.prank(tokenOwner);
         tokenUSDC.mint(DEV, tokenAmount);
-        ILBPair(USDCUSDT1bps).swap(true, DEV);
+        ILBLegacyPair(USDCUSDT1bps).swap(true, DEV);
 
         uint256 USDTPrice2 = joeDexLens.getTokenPriceUSD(USDT);
         assertGt(USDTPrice2, USDTPrice1);
@@ -115,7 +115,7 @@ contract TestJoeDexLens2 is TestHelper {
         vm.prank(tokenOwner);
         tokenUSDC.mint(DEV, tokenAmount);
         tokenUSDC.transfer(NativeUSDC10bps, tokenAmount);
-        ILBPair(NativeUSDC10bps).swap(false, DEV);
+        ILBLegacyPair(NativeUSDC10bps).swap(false, DEV);
 
         uint256 USDCPrice2 = joeDexLens.getTokenPriceNative(USDC);
         assertLt(USDCPrice2, USDCPrice1);

@@ -10,7 +10,7 @@ import "./TestHelper.sol";
 contract TestJoeDexLens is TestHelper {
     function setUp() public {
         vm.createSelectFork(vm.rpcUrl("fuji"), 14_541_000);
-        joeDexLens = new JoeDexLens(ILBRouter(LBRouter), IJoeFactory(factoryV1), wNative, USDC);
+        joeDexLens = new JoeDexLens(LBLegacyRouter, IJoeFactory(factoryV1), wNative, USDC);
     }
 
     function testAddUSDDataFeeds() public {

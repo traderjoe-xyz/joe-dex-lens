@@ -2,9 +2,9 @@
 
 pragma solidity ^0.8.0;
 
-import "joe-v2/libraries/Math512Bits.sol";
+import "joe-v2/libraries/math/Uint256x256Math.sol";
 import "joe-v2/libraries/Constants.sol";
-import "joe-v2/interfaces/ILBPair.sol";
+import "joe-v2/interfaces/ILBLegacyPair.sol";
 import "joe-v2/interfaces/IJoePair.sol";
 import "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import "solrary/access/SafeAccessControlEnumerable.sol";
@@ -18,14 +18,14 @@ import "./interfaces/IJoeDexLens.sol";
 /// and can set the weight of the different data feeds. When no data feed is provided for both collateral, the contract
 /// will use the TOKEN/WNative and TOKEN/USD V1 pool to try to price the asset
 contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
-    using Math512Bits for uint256;
+    using Uint256x256Math for uint256;
 
     bytes32 public constant DATA_FEED_MANAGER_ROLE = keccak256("DATA_FEED_MANAGER_ROLE");
 
     uint256 private constant _DECIMALS = 18;
     uint256 private constant _PRECISION = 10 ** _DECIMALS;
 
-    ILBRouter private immutable _ROUTER_V2;
+    ILBLegacyRouter private immutable _LEGACY_ROUTER_V2;
     IJoeFactory private immutable _FACTORY_V1;
 
     address private immutable _WNATIVE;
@@ -83,8 +83,8 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      * Constructor *
      */
 
-    constructor(ILBRouter routerV2, IJoeFactory factoryV1, address wNative, address usdStableCoin) {
-        _ROUTER_V2 = routerV2;
+    constructor(ILBLegacyRouter legacyRouterV2, IJoeFactory factoryV1, address wNative, address usdStableCoin) {
+        _LEGACY_ROUTER_V2 = legacyRouterV2;
         _FACTORY_V1 = factoryV1;
         _WNATIVE = wNative;
         _USD_STABLE_COIN = usdStableCoin;
@@ -107,9 +107,9 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     }
 
     /// @notice Returns the address of the router V2
-    /// @return routerV2 The address of the router V2
-    function getRouterV2() external view override returns (ILBRouter routerV2) {
-        return _ROUTER_V2;
+    /// @return legacyRouterV2 The address of the router V2
+    function getLegacyRouterV2() external view override returns (ILBLegacyRouter legacyRouterV2) {
+        return _LEGACY_ROUTER_V2;
     }
 
     /// @notice Returns the address of the factory V1
@@ -628,10 +628,10 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     /// @param token The address of the token
     /// @return price The price of the token, with `_DECIMALS` decimals
     function _getPriceFromV2(address pairAddress, address token) private view returns (uint256 price) {
-        ILBPair pair = ILBPair(pairAddress);
+        ILBLegacyPair pair = ILBLegacyPair(pairAddress);
 
         (,, uint256 activeID) = pair.getReservesAndId();
-        uint256 priceScaled = _ROUTER_V2.getPriceFromId(pair, uint24(activeID));
+        uint256 priceScaled = _LEGACY_ROUTER_V2.getPriceFromId(pair, uint24(activeID));
 
         address tokenX = address(pair.tokenX());
         address tokenY = address(pair.tokenY());
@@ -663,7 +663,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
             tokenA = pair.token0();
             tokenB = pair.token1();
         } else if (dataFeed.dfType == dfType.V2) {
-            ILBPair pair = ILBPair(dataFeed.dfAddress);
+            ILBLegacyPair pair = ILBLegacyPair(dataFeed.dfAddress);
 
             tokenA = address(pair.tokenX());
             tokenB = address(pair.tokenY());

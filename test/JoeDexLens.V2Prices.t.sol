@@ -19,13 +19,13 @@ contract TestV2Prices is TestHelper {
         token10D = new ERC20MockDecimals(10);
         token24D = new ERC20MockDecimals(24);
 
-        joeDexLens = new JoeDexLens(LBRouter, joeFactory, wNative, USDC);
+        joeDexLens = new JoeDexLens(LBLegacyRouter, joeFactory, wNative, USDC);
 
         vm.startPrank(factoryOwner);
-        LBFactory.setFactoryLockedState(false);
+        LBLegacyFactory.setFactoryLockedState(false);
 
-        LBFactory.addQuoteAsset(token10D);
-        LBFactory.addQuoteAsset(token24D);
+        LBLegacyFactory.addQuoteAsset(token10D);
+        LBLegacyFactory.addQuoteAsset(token24D);
         vm.stopPrank();
     }
 
@@ -41,11 +41,11 @@ contract TestV2Prices is TestHelper {
     }
 
     function testV2PriceUSDC_USDT() public {
-        ILBPair pair = ILBPair(USDCUSDT1bps);
+        ILBLegacyPair pair = ILBLegacyPair(USDCUSDT1bps);
 
         (,, uint256 id) = pair.getReservesAndId();
 
-        uint256 price128x128 = LBRouter.getPriceFromId(pair, uint24(id));
+        uint256 price128x128 = LBLegacyRouter.getPriceFromId(pair, uint24(id));
 
         uint8 decimalsX = IERC20Metadata(USDT).decimals();
         uint256 priceReal = ((price128x128 * 10 ** decimalsX) >> 128);
@@ -57,11 +57,11 @@ contract TestV2Prices is TestHelper {
     }
 
     function testV2PriceNativeUSDC10bps() public {
-        ILBPair pair = ILBPair(NativeUSDC10bps);
+        ILBLegacyPair pair = ILBLegacyPair(NativeUSDC10bps);
 
         (,, uint256 id) = pair.getReservesAndId();
 
-        uint256 price128x128 = LBRouter.getPriceFromId(pair, uint24(id));
+        uint256 price128x128 = LBLegacyRouter.getPriceFromId(pair, uint24(id));
 
         uint8 decimalsX = IERC20Metadata(wNative).decimals();
         uint256 priceReal = (price128x128 * 10 ** decimalsX) >> 128;

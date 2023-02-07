@@ -2,12 +2,11 @@
 
 pragma solidity ^0.8.0;
 
-import "joe-v2/interfaces/ILBRouter.sol";
+import "joe-v2/interfaces/ILBLegacyRouter.sol";
 import "joe-v2/interfaces/IJoeFactory.sol";
 import "solrary/access/ISafeAccessControlEnumerable.sol";
 
 import "../interfaces/AggregatorV3Interface.sol";
-import "joe-v2/LBErrors.sol";
 
 /// @title Interface of the Joe Dex Lens contract
 /// @author Trader Joe
@@ -60,7 +59,7 @@ interface IJoeDexLens is ISafeAccessControlEnumerable {
 
     function getUSDStableCoin() external view returns (address usd);
 
-    function getRouterV2() external view returns (ILBRouter routerV2);
+    function getLegacyRouterV2() external view returns (ILBLegacyRouter legacyRouterV2);
 
     function getFactoryV1() external view returns (IJoeFactory factoryV1);
 
