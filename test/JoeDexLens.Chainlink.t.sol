@@ -10,8 +10,8 @@ contract TestChainlink is TestHelper {
     address token;
 
     function setUp() public override {
-        super.setUp();
         vm.createSelectFork(vm.rpcUrl("fuji"), 14_541_000);
+        super.setUp();
 
         token = address(new ERC20MockDecimals(18));
 

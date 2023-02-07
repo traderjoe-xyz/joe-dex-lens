@@ -23,8 +23,6 @@ contract TestV2_1Prices is TestHelper {
 
         joeDexLens = new JoeDexLens(lbRouter, USDC);
 
-        lbFactory.setOpenPreset(DEFAULT_BIN_STEP * 2, true);
-        lbFactory.addQuoteAsset(IERC20(USDC));
         lbFactory.addQuoteAsset(token10D);
         lbFactory.addQuoteAsset(token24D);
     }

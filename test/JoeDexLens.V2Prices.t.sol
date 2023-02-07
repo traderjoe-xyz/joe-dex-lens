@@ -24,8 +24,6 @@ contract TestV2Prices is TestHelper {
         joeDexLens = new JoeDexLens(lbRouter, USDC);
 
         vm.startPrank(factoryOwner);
-        LBLegacyFactory.setFactoryLockedState(false);
-
         LBLegacyFactory.addQuoteAsset(token10D);
         LBLegacyFactory.addQuoteAsset(token24D);
         vm.stopPrank();

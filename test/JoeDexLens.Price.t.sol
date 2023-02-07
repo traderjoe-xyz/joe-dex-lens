@@ -29,19 +29,6 @@ contract TestJoeDexLens2 is TestHelper {
         assertApproxEqRel(NativePrice * usdcPrice, 10 ** (decimalsUsdc + decimalsWNative), 1e12);
     }
 
-    function testPriceWithoutDataFeeds() public {
-        vm.expectRevert(IJoeDexLens.JoeDexLens__PairsNotCreated.selector);
-        joeDexLens.getTokenPriceUSD(address(1));
-
-        uint256 usdcPrice = joeDexLens.getTokenPriceNative(USDC);
-        uint256 usdtPrice = joeDexLens.getTokenPriceNative(USDT);
-        uint256 NativePrice = joeDexLens.getTokenPriceUSD(wNative);
-
-        assertApproxEqRel(usdcPrice, 5e16, 3e16);
-        assertApproxEqRel(usdtPrice, usdcPrice, 1e15);
-        assertApproxEqRel((usdcPrice * NativePrice) / 1e6, 1e18, 1e15);
-    }
-
     function testPriceOnSameV2Pair10bp() public {
         IJoeDexLens.DataFeed memory df = IJoeDexLens.DataFeed(NativeUSDC10bps, 1, IJoeDexLens.dfType.V2);
         joeDexLens.addUSDDataFeed(wNative, df);

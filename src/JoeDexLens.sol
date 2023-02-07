@@ -721,7 +721,53 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     /// @param token The address of the token
     /// @return price The weighted average, based on pair's liquidity, of the token with the collateral's decimals
     function _getPriceAnyToken(address collateral, address token) private view returns (uint256 price) {
-        price = _v1FallbackPrice(collateral, token);
+        price = _v2_1FallbackPrice(collateral, token);
+
+        if (price == 0) {
+            price = _v2FallbackPrice(collateral, token);
+        }
+
+        if (price == 0) {
+            price = _v1FallbackPrice(collateral, token);
+        }
+    }
+
+    // @todo
+    function _validateV2_1Pair(ILBPair pairAddress) private pure returns (bool isValid) {
+        pairAddress;
+        return true;
+    }
+
+    function _v2_1FallbackPrice(address collateral, address token) private view returns (uint256 price) {
+        ILBFactory.LBPairInformation[] memory lbPairsAvailable =
+            _FACTORY_V2_1.getAllLBPairs(IERC20(collateral), IERC20(token));
+
+        if (lbPairsAvailable.length != 0) {
+            for (uint256 i = 0; i < lbPairsAvailable.length; i++) {
+                if (_validateV2_1Pair(lbPairsAvailable[i].LBPair)) {
+                    return _getPriceFromV2_1(address(lbPairsAvailable[i].LBPair), token);
+                }
+            }
+        }
+    }
+
+    // @todo
+    function _validateV2Pair(ILBLegacyPair pairAddress) private pure returns (bool isValid) {
+        pairAddress;
+        return true;
+    }
+
+    function _v2FallbackPrice(address collateral, address token) private view returns (uint256 price) {
+        ILBLegacyFactory.LBPairInformation[] memory lbPairsAvailable =
+            _LEGACY_FACTORY_V2.getAllLBPairs(IERC20(collateral), IERC20(token));
+
+        if (lbPairsAvailable.length != 0) {
+            for (uint256 i = 0; i < lbPairsAvailable.length; i++) {
+                if (_validateV2Pair(lbPairsAvailable[i].LBPair)) {
+                    return _getPriceFromV2(address(lbPairsAvailable[i].LBPair), token);
+                }
+            }
+        }
     }
 
     function _v1FallbackPrice(address collateral, address token) private view returns (uint256 price) {

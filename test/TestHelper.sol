@@ -48,6 +48,7 @@ abstract contract TestHelper is Test {
 
     address public constant USDT = 0xAb231A5744C8E6c45481754928cCfFFFD4aa0732;
     address public constant USDC = 0xB6076C93701D6a07266c31066B298AeC6dd65c2d;
+    address public constant WETH = 0x1886D09C9Ade0c5DB822D85D21678Db67B6c2982;
     address public constant wNative = 0xd00ae08403B9bbb9124bB305C09058E32C39A48c;
 
     address public constant USDCUSDTv1 = 0x8625feb95141008FE48ea5cf8A7dd84A83a72d9E;
@@ -75,6 +76,12 @@ abstract contract TestHelper is Test {
             DEFAULT_PROTOCOL_SHARE,
             DEFAULT_MAX_VOLATILITY_ACCUMULATOR
         );
+
+        lbFactory.setOpenPreset(DEFAULT_BIN_STEP * 2, true);
+        lbFactory.addQuoteAsset(IERC20(USDC));
+
+        vm.prank(factoryOwner);
+        LBLegacyFactory.setFactoryLockedState(false);
 
         vm.label(address(lbFactory), "factory");
         vm.label(address(lbRouter), "router");
