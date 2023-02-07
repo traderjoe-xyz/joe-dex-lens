@@ -16,7 +16,7 @@ abstract contract TestHelper is Test {
     using Uint256x256Math for uint256;
 
     address payable internal immutable DEV = payable(address(this));
-    address internal immutable ALICE = address(bytes20(bytes32(keccak256(bytes("ALICE")))));
+    address internal immutable ALICE = makeAddr("alice");
 
     uint16 internal constant DEFAULT_BIN_STEP = 20;
     uint24 internal constant ID_ONE = 2 ** 23;
