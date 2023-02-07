@@ -21,7 +21,15 @@ abstract contract TestHelper is Test {
     address payable internal immutable DEV = payable(address(this));
     address internal immutable ALICE = makeAddr("alice");
 
-    uint16 internal constant DEFAULT_BIN_STEP = 20;
+    uint8 internal constant DEFAULT_BIN_STEP = 20;
+    uint16 internal constant DEFAULT_BASE_FACTOR = 5_000;
+    uint16 internal constant DEFAULT_FILTER_PERIOD = 30;
+    uint16 internal constant DEFAULT_DECAY_PERIOD = 600;
+    uint16 internal constant DEFAULT_REDUCTION_FACTOR = 5_000;
+    uint24 internal constant DEFAULT_VARIABLE_FEE_CONTROL = 40_000;
+    uint16 internal constant DEFAULT_PROTOCOL_SHARE = 1_000;
+    uint24 internal constant DEFAULT_MAX_VOLATILITY_ACCUMULATOR = 350_000;
+    uint256 internal constant DEFAULT_FLASHLOAN_FEE = 8e14;
     uint24 internal constant ID_ONE = 2 ** 23;
 
     address public constant tokenOwner = 0xFFC08538077a0455E0F4077823b1A0E3e18Faf0b;
@@ -52,29 +60,64 @@ abstract contract TestHelper is Test {
     JoeDexLens public joeDexLens;
 
     function setUp() public virtual {
-        vm.createSelectFork(vm.rpcUrl("fuji"), 14_541_000);
-
-        lbFactory = new LBFactory(DEV,8e14);
+        lbFactory = new LBFactory(DEV,  DEFAULT_FLASHLOAN_FEE);
         lbFactory.setLBPairImplementation(address(new LBPair(lbFactory)));
 
         lbRouter = new LBRouter(lbFactory, IJoeFactory(factoryV1), LBLegacyFactory, LBLegacyRouter, IWAVAX(wNative));
+
+        lbFactory.setPreset(
+            DEFAULT_BIN_STEP * 2,
+            DEFAULT_BASE_FACTOR,
+            DEFAULT_FILTER_PERIOD,
+            DEFAULT_DECAY_PERIOD,
+            DEFAULT_REDUCTION_FACTOR,
+            DEFAULT_VARIABLE_FEE_CONTROL,
+            DEFAULT_PROTOCOL_SHARE,
+            DEFAULT_MAX_VOLATILITY_ACCUMULATOR
+        );
+
+        vm.label(address(lbFactory), "factory");
+        vm.label(address(lbRouter), "router");
+        vm.label(address(LBLegacyFactory), "legacyFactory");
+        vm.label(address(LBLegacyRouter), "legacyRouter");
+        vm.label(address(factoryV1), "joeFactoryV1");
     }
 
-    function createPairAndAddToUSDDataFeeds(address tokenX, address tokenY, uint24 id) internal {
-        ILBLegacyPair pair = LBLegacyRouter.createLBPair(IERC20(tokenX), IERC20(tokenY), id, DEFAULT_BIN_STEP);
+    function createPairAndAddToUSDDataFeeds(address tokenX, address tokenY, uint24 id, IJoeDexLens.dfType pairType)
+        internal
+    {
+        if (pairType == IJoeDexLens.dfType.V2) {
+            ILBLegacyPair pair = LBLegacyRouter.createLBPair(IERC20(tokenX), IERC20(tokenY), id, DEFAULT_BIN_STEP);
 
-        IJoeDexLens.DataFeed memory dataFeed = IJoeDexLens.DataFeed(address(pair), 1e18, IJoeDexLens.dfType.V2);
+            IJoeDexLens.DataFeed memory dataFeed = IJoeDexLens.DataFeed(address(pair), 1e18, IJoeDexLens.dfType.V2);
 
-        IJoeDexLens.DataFeed[] memory dataFeeds = new IJoeDexLens.DataFeed[](1);
-        dataFeeds[0] = dataFeed;
+            IJoeDexLens.DataFeed[] memory dataFeeds = new IJoeDexLens.DataFeed[](1);
+            dataFeeds[0] = dataFeed;
 
-        if (tokenX == USDC || tokenY == USDC) {
-            address token = tokenX == USDC ? tokenY : tokenX;
+            if (tokenX == USDC || tokenY == USDC) {
+                address token = tokenX == USDC ? tokenY : tokenX;
 
-            address[] memory tokens = new address[](1);
-            tokens[0] = token;
+                address[] memory tokens = new address[](1);
+                tokens[0] = token;
 
-            joeDexLens.addUSDDataFeeds(tokens, dataFeeds);
+                joeDexLens.addUSDDataFeeds(tokens, dataFeeds);
+            }
+        } else {
+            ILBPair pair = lbRouter.createLBPair(IERC20(tokenX), IERC20(tokenY), id, DEFAULT_BIN_STEP * 2);
+
+            IJoeDexLens.DataFeed memory dataFeed = IJoeDexLens.DataFeed(address(pair), 1e18, IJoeDexLens.dfType.V2_1);
+
+            IJoeDexLens.DataFeed[] memory dataFeeds = new IJoeDexLens.DataFeed[](1);
+            dataFeeds[0] = dataFeed;
+
+            if (tokenX == USDC || tokenY == USDC) {
+                address token = tokenX == USDC ? tokenY : tokenX;
+
+                address[] memory tokens = new address[](1);
+                tokens[0] = token;
+
+                joeDexLens.addUSDDataFeeds(tokens, dataFeeds);
+            }
         }
     }
 

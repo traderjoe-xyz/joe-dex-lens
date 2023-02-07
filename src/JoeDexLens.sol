@@ -27,6 +27,8 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     uint256 private constant _PRECISION = 10 ** _DECIMALS;
 
     IJoeFactory private immutable _FACTORY_V1;
+    ILBLegacyFactory private immutable _LEGACY_FACTORY_V2;
+    ILBFactory private immutable _FACTORY_V2_1;
     ILBLegacyRouter private immutable _LEGACY_ROUTER_V2;
     ILBRouter private immutable _ROUTER_V2_1;
 
@@ -85,17 +87,13 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      * Constructor *
      */
 
-    constructor(
-        ILBRouter lbRouter,
-        ILBLegacyRouter legacyRouterV2,
-        IJoeFactory factoryV1,
-        address wNative,
-        address usdStableCoin
-    ) {
+    constructor(ILBRouter lbRouter, address usdStableCoin) {
         _ROUTER_V2_1 = lbRouter;
-        _LEGACY_ROUTER_V2 = legacyRouterV2;
-        _FACTORY_V1 = factoryV1;
-        _WNATIVE = wNative;
+        _LEGACY_ROUTER_V2 = lbRouter.getLegacyRouter();
+        _FACTORY_V1 = lbRouter.getV1Factory();
+        _LEGACY_FACTORY_V2 = lbRouter.getLegacyFactory();
+        _FACTORY_V2_1 = lbRouter.getFactory();
+        _WNATIVE = address(lbRouter.getWAVAX());
         _USD_STABLE_COIN = usdStableCoin;
     }
 
@@ -546,6 +544,8 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
                 dfPrice = _getPriceFromV1(dataFeed.dfAddress, token);
             } else if (dataFeed.dfType == dfType.V2) {
                 dfPrice = _getPriceFromV2(dataFeed.dfAddress, token);
+            } else if (dataFeed.dfType == dfType.V2_1) {
+                dfPrice = _getPriceFromV2_1(dataFeed.dfAddress, token);
             } else if (dataFeed.dfType == dfType.CHAINLINK) {
                 dfPrice = _getPriceFromChainlink(dataFeed.dfAddress);
             } else {
@@ -660,6 +660,35 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         }
     }
 
+    /// @notice Return the price of the token denominated in the second token of the V2.1 pair, with `_DECIMALS` decimals
+    /// @dev The `token` token needs to be on of the two paired token of the given pair
+    /// @param pairAddress The address of the pair
+    /// @param token The address of the token
+    /// @return price The price of the token, with `_DECIMALS` decimals
+    function _getPriceFromV2_1(address pairAddress, address token) private view returns (uint256 price) {
+        ILBPair pair = ILBPair(pairAddress);
+
+        uint256 activeID = pair.getActiveId();
+        uint256 priceScaled = _ROUTER_V2_1.getPriceFromId(pair, uint24(activeID));
+
+        address tokenX = address(pair.getTokenX());
+        address tokenY = address(pair.getTokenY());
+
+        uint256 decimalsX = IERC20Metadata(tokenX).decimals();
+        uint256 decimalsY = IERC20Metadata(tokenY).decimals();
+
+        // Return the price with `_DECIMALS` decimals
+        if (token == tokenX) {
+            return priceScaled.mulShiftRoundDown(10 ** (18 + decimalsX - decimalsY), Constants.SCALE_OFFSET);
+        } else if (token == tokenY) {
+            return (type(uint256).max / priceScaled).mulShiftRoundDown(
+                10 ** (18 + decimalsY - decimalsX), Constants.SCALE_OFFSET
+            );
+        } else {
+            revert JoeDexLens__WrongPair();
+        }
+    }
+
     /// @notice Return the addresses of the two tokens of a pair
     /// @dev Work with both V1 or V2 pairs
     /// @param dataFeed The data feeds information
@@ -676,6 +705,11 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
             tokenA = address(pair.tokenX());
             tokenB = address(pair.tokenY());
+        } else if (dataFeed.dfType == dfType.V2_1) {
+            ILBPair pair = ILBPair(dataFeed.dfAddress);
+
+            tokenA = address(pair.getTokenX());
+            tokenB = address(pair.getTokenY());
         } else {
             revert JoeDexLens__UnknownDataFeedType();
         }
@@ -687,6 +721,10 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     /// @param token The address of the token
     /// @return price The weighted average, based on pair's liquidity, of the token with the collateral's decimals
     function _getPriceAnyToken(address collateral, address token) private view returns (uint256 price) {
+        price = _v1FallbackPrice(collateral, token);
+    }
+
+    function _v1FallbackPrice(address collateral, address token) private view returns (uint256 price) {
         address pairTokenWNative = _FACTORY_V1.getPair(token, _WNATIVE);
         address pairTokenUsdc = _FACTORY_V1.getPair(token, _USD_STABLE_COIN);
 

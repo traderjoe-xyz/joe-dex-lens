@@ -29,6 +29,7 @@ interface IJoeDexLens is ISafeAccessControlEnumerable {
     enum dfType {
         V1,
         V2,
+        V2_1,
         CHAINLINK
     }
 

@@ -10,12 +10,12 @@ contract TestChainlink is TestHelper {
     address token;
 
     function setUp() public override {
-        address MockUSDC = address(new ERC20MockDecimals(6));
-        address MockWNative = address(new ERC20MockDecimals(18));
+        super.setUp();
+        vm.createSelectFork(vm.rpcUrl("fuji"), 14_541_000);
 
         token = address(new ERC20MockDecimals(18));
 
-        joeDexLens = new JoeDexLens(lbRouter, LBLegacyRouter, joeFactory, MockWNative, MockUSDC);
+        joeDexLens = new JoeDexLens(lbRouter, USDC);
         aggregator = new MockAggregator();
     }
 

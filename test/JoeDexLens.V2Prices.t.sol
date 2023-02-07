@@ -16,11 +16,12 @@ contract TestV2Prices is TestHelper {
 
     function setUp() public override {
         vm.createSelectFork(vm.rpcUrl("fuji"), 14_541_000);
+        super.setUp();
 
         token10D = new ERC20MockDecimals(10);
         token24D = new ERC20MockDecimals(24);
 
-        joeDexLens = new JoeDexLens(lbRouter, LBLegacyRouter, joeFactory, wNative, USDC);
+        joeDexLens = new JoeDexLens(lbRouter, USDC);
 
         vm.startPrank(factoryOwner);
         LBLegacyFactory.setFactoryLockedState(false);
@@ -74,7 +75,7 @@ contract TestV2Prices is TestHelper {
     }
 
     function testV2PriceUSDC_10D() public {
-        createPairAndAddToUSDDataFeeds(USDC, address(token10D), ID_ONE + SHIFT_ID_ONE_1e4);
+        createPairAndAddToUSDDataFeeds(USDC, address(token10D), ID_ONE + SHIFT_ID_ONE_1e4, IJoeDexLens.dfType.V2);
 
         uint256 priceT10D = joeDexLens.getTokenPriceUSD(address(token10D));
 
@@ -83,7 +84,7 @@ contract TestV2Prices is TestHelper {
     }
 
     function testV2PriceUSDC_24D() public {
-        createPairAndAddToUSDDataFeeds(USDC, address(token24D), ID_ONE + SHIFT_ID_ONE_1e18);
+        createPairAndAddToUSDDataFeeds(USDC, address(token24D), ID_ONE + SHIFT_ID_ONE_1e18, IJoeDexLens.dfType.V2);
 
         uint256 price = joeDexLens.getTokenPriceUSD(address(token24D));
 
@@ -91,7 +92,7 @@ contract TestV2Prices is TestHelper {
     }
 
     function testV2Price10D_USDC() public {
-        createPairAndAddToUSDDataFeeds(address(token10D), USDC, ID_ONE - SHIFT_ID_ONE_1e4);
+        createPairAndAddToUSDDataFeeds(address(token10D), USDC, ID_ONE - SHIFT_ID_ONE_1e4, IJoeDexLens.dfType.V2);
 
         uint256 price = joeDexLens.getTokenPriceUSD(address(token10D));
 
@@ -99,7 +100,7 @@ contract TestV2Prices is TestHelper {
     }
 
     function testV2Price24D_USDC() public {
-        createPairAndAddToUSDDataFeeds(address(token24D), USDC, ID_ONE - SHIFT_ID_ONE_1e18);
+        createPairAndAddToUSDDataFeeds(address(token24D), USDC, ID_ONE - SHIFT_ID_ONE_1e18, IJoeDexLens.dfType.V2);
 
         uint256 price = joeDexLens.getTokenPriceUSD(address(token24D));
 
