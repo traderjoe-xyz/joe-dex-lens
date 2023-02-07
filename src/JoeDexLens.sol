@@ -6,6 +6,7 @@ import "joe-v2/libraries/math/Uint256x256Math.sol";
 import "joe-v2/libraries/Constants.sol";
 import "joe-v2/interfaces/ILBLegacyPair.sol";
 import "joe-v2/interfaces/IJoePair.sol";
+import "joe-v2/interfaces/ILBRouter.sol";
 import "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import "solrary/access/SafeAccessControlEnumerable.sol";
 
@@ -25,8 +26,9 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     uint256 private constant _DECIMALS = 18;
     uint256 private constant _PRECISION = 10 ** _DECIMALS;
 
-    ILBLegacyRouter private immutable _LEGACY_ROUTER_V2;
     IJoeFactory private immutable _FACTORY_V1;
+    ILBLegacyRouter private immutable _LEGACY_ROUTER_V2;
+    ILBRouter private immutable _ROUTER_V2_1;
 
     address private immutable _WNATIVE;
     address private immutable _USD_STABLE_COIN;
@@ -83,7 +85,14 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      * Constructor *
      */
 
-    constructor(ILBLegacyRouter legacyRouterV2, IJoeFactory factoryV1, address wNative, address usdStableCoin) {
+    constructor(
+        ILBRouter lbRouter,
+        ILBLegacyRouter legacyRouterV2,
+        IJoeFactory factoryV1,
+        address wNative,
+        address usdStableCoin
+    ) {
+        _ROUTER_V2_1 = lbRouter;
         _LEGACY_ROUTER_V2 = legacyRouterV2;
         _FACTORY_V1 = factoryV1;
         _WNATIVE = wNative;

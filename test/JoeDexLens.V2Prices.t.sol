@@ -14,12 +14,13 @@ contract TestV2Prices is TestHelper {
     uint24 SHIFT_ID_ONE_1e4 = 4_609; // The result of `log( 1e10/1e6 ) / log(1.002)`, when 1 token6D is equal to 1 token10D
     uint24 SHIFT_ID_ONE_1e18 = 20_743; // The result of `log( 1e24/1e6 ) / log(1.002)`, when 1 token6D is equal to 1 token24D
 
-    function setUp() public {
+    function setUp() public override {
         vm.createSelectFork(vm.rpcUrl("fuji"), 14_541_000);
+
         token10D = new ERC20MockDecimals(10);
         token24D = new ERC20MockDecimals(24);
 
-        joeDexLens = new JoeDexLens(LBLegacyRouter, joeFactory, wNative, USDC);
+        joeDexLens = new JoeDexLens(lbRouter, LBLegacyRouter, joeFactory, wNative, USDC);
 
         vm.startPrank(factoryOwner);
         LBLegacyFactory.setFactoryLockedState(false);

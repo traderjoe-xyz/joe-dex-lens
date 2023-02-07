@@ -6,6 +6,9 @@ import "forge-std/Test.sol";
 import "joe-v2/interfaces/ILBRouter.sol";
 import "joe-v2/interfaces/ILBFactory.sol";
 import "joe-v2/interfaces/IJoeRouter02.sol";
+import "joe-v2/LBPair.sol";
+import "joe-v2/LBRouter.sol";
+import "joe-v2/LBFactory.sol";
 import "openzeppelin/token/ERC20/IERC20.sol";
 
 import "../src/JoeDexLens.sol";
@@ -23,6 +26,9 @@ abstract contract TestHelper is Test {
 
     address public constant tokenOwner = 0xFFC08538077a0455E0F4077823b1A0E3e18Faf0b;
     address public constant factoryOwner = 0x4f029B3faA0fE6405Ae6eBA5795293688cf69c2e;
+
+    LBRouter public lbRouter;
+    LBFactory public lbFactory;
 
     ILBLegacyFactory public constant LBLegacyFactory = ILBLegacyFactory(0x2950b9bd19152C91d69227364747b3e6EFC8Ab7F);
     ILBLegacyRouter public constant LBLegacyRouter = ILBLegacyRouter(0x0C344c52841d3F8d488E1CcDBafB42CE2C7fdFA9);
@@ -44,6 +50,15 @@ abstract contract TestHelper is Test {
     address public constant NativeUSDC20bps = 0xc8aa3bF8623C35EAc518Ea82B55C2aa46D5A02f6;
 
     JoeDexLens public joeDexLens;
+
+    function setUp() public virtual {
+        vm.createSelectFork(vm.rpcUrl("fuji"), 14_541_000);
+
+        lbFactory = new LBFactory(DEV,8e14);
+        lbFactory.setLBPairImplementation(address(new LBPair(lbFactory)));
+
+        lbRouter = new LBRouter(lbFactory, IJoeFactory(factoryV1), LBLegacyFactory, LBLegacyRouter, IWAVAX(wNative));
+    }
 
     function createPairAndAddToUSDDataFeeds(address tokenX, address tokenY, uint24 id) internal {
         ILBLegacyPair pair = LBLegacyRouter.createLBPair(IERC20(tokenX), IERC20(tokenY), id, DEFAULT_BIN_STEP);
