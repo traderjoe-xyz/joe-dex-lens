@@ -35,6 +35,10 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     address private immutable _WNATIVE;
     address private immutable _USD_STABLE_COIN;
 
+    uint256 private constant _MIN_AMOUNT = 1e16;
+    uint256 private constant _BASIS_POINTS = 1e18;
+    uint256 private constant _BIN_WIDTH = 5;
+
     /// @dev Mapping from a collateral token to a token to an enumerable set of data feeds used to get the price of the token in collateral
     /// e.g. STABLECOIN => Native will return datafeeds to get the price of Native in USD
     /// And Native => JOE will return datafeeds to get the price of JOE in Native
@@ -732,29 +736,23 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         }
     }
 
-    // @todo
-    function _validateV2_1Pair(ILBPair pairAddress) private pure returns (bool isValid) {
-        pairAddress;
-        return true;
-    }
-
     function _v2_1FallbackPrice(address collateral, address token) private view returns (uint256 price) {
         ILBFactory.LBPairInformation[] memory lbPairsAvailable =
             _FACTORY_V2_1.getAllLBPairs(IERC20(collateral), IERC20(token));
 
         if (lbPairsAvailable.length != 0) {
             for (uint256 i = 0; i < lbPairsAvailable.length; i++) {
-                if (_validateV2_1Pair(lbPairsAvailable[i].LBPair)) {
+                if (
+                    _validateV2_1Pair(
+                        lbPairsAvailable[i].LBPair,
+                        IERC20Metadata(address(lbPairsAvailable[i].LBPair.getTokenX())).decimals(),
+                        IERC20Metadata(address(lbPairsAvailable[i].LBPair.getTokenY())).decimals()
+                    )
+                ) {
                     return _getPriceFromV2_1(address(lbPairsAvailable[i].LBPair), token);
                 }
             }
         }
-    }
-
-    // @todo
-    function _validateV2Pair(ILBLegacyPair pairAddress) private pure returns (bool isValid) {
-        pairAddress;
-        return true;
     }
 
     function _v2FallbackPrice(address collateral, address token) private view returns (uint256 price) {
@@ -763,7 +761,13 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
         if (lbPairsAvailable.length != 0) {
             for (uint256 i = 0; i < lbPairsAvailable.length; i++) {
-                if (_validateV2Pair(lbPairsAvailable[i].LBPair)) {
+                if (
+                    _validateV2Pair(
+                        lbPairsAvailable[i].LBPair,
+                        IERC20Metadata(address(lbPairsAvailable[i].LBPair.tokenX())).decimals(),
+                        IERC20Metadata(address(lbPairsAvailable[i].LBPair.tokenY())).decimals()
+                    )
+                ) {
                     return _getPriceFromV2(address(lbPairsAvailable[i].LBPair), token);
                 }
             }
@@ -804,6 +808,71 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         } else {
             revert JoeDexLens__PairsNotCreated();
         }
+    }
+
+    function _validateV2_1Pair(ILBPair pair, uint256 tokenXDecimals, uint256 tokenYDecimals)
+        private
+        view
+        returns (bool isValid)
+    {
+        uint256 activeId = pair.getActiveId();
+
+        (uint256 reserveX, uint256 reserveY) = pair.getReserves();
+
+        // Skip if the total reserves of the pair are too low
+        if (!_validateReserves(reserveX, reserveY, tokenXDecimals, tokenYDecimals)) {
+            return false;
+        }
+
+        // Skip if the reserves of the _BIN_WIDTH bin around the active bin are too low
+        reserveX = reserveY = 0;
+        for (uint256 i = activeId - _BIN_WIDTH; i < activeId + _BIN_WIDTH; i++) {
+            (uint256 binReserveX, uint256 binReserveY) = pair.getBin(uint24(i));
+            reserveX += binReserveX;
+            reserveY += binReserveY;
+        }
+
+        if (!_validateReserves(reserveX, reserveY, tokenXDecimals, tokenYDecimals)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    function _validateV2Pair(ILBLegacyPair pair, uint256 tokenXDecimals, uint256 tokenYDecimals)
+        private
+        view
+        returns (bool isValid)
+    {
+        (uint256 reserveX, uint256 reserveY, uint256 activeId) = pair.getReservesAndId();
+
+        // Skip if the total reserves of the pair are too low
+        if (!_validateReserves(reserveX, reserveY, tokenXDecimals, tokenYDecimals)) {
+            return false;
+        }
+
+        // Skip if the reserves of the _BIN_WIDTH bin around the active bin are too low
+        reserveX = reserveY = 0;
+        for (uint256 i = activeId - _BIN_WIDTH; i < activeId + _BIN_WIDTH; i++) {
+            (uint256 binReserveX, uint256 binReserveY) = pair.getBin(uint24(i));
+            reserveX += binReserveX;
+            reserveY += binReserveY;
+        }
+
+        if (!_validateReserves(reserveX, reserveY, tokenXDecimals, tokenYDecimals)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    function _validateReserves(uint256 reserveX, uint256 reserveY, uint256 tokenXDecimals, uint256 tokenYDecimals)
+        private
+        pure
+        returns (bool isValid)
+    {
+        return reserveX > (_MIN_AMOUNT * 10 ** tokenXDecimals) / _BASIS_POINTS
+            && reserveY > (_MIN_AMOUNT * 10 ** tokenYDecimals) / _BASIS_POINTS;
     }
 
     /// @notice Return the price in collateral of a token from a V1 pair

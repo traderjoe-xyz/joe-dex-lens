@@ -30,20 +30,80 @@ contract TestJoeDexLens_ is TestHelper {
         assertApproxEqRel(priceNative, 6.68e18, 3e16);
     }
 
-    function test_PriceWithoutDataFeeds_V2() public {
-        LBLegacyRouter.createLBPair(token18D, IERC20(USDC), 1 << 23, DEFAULT_BIN_STEP);
+    function test_PriceWithoutDataFeeds_LegacyV2() public {
+        // 1 token18 = 2 USDC
+        LBLegacyRouter.createLBPair(token18D, IERC20(USDC), 8361297, DEFAULT_BIN_STEP);
 
+        // Fails if there is no liquidity
+        vm.expectRevert(IJoeDexLens.JoeDexLens__PairsNotCreated.selector);
         uint256 tokenPrice = joeDexLens.getTokenPriceUSD(address(token18D));
 
-        console.log("tokenPrice: %s", tokenPrice);
+        // Add liquidity but not enough to meet the lens requirements for a valid price
+        ILBRouter.LiquidityParameters memory liquidityParameters =
+            getLiquidityParameters(token18D, IERC20(USDC), 0.1e6, 8361297, 67, 15);
+
+        deal(address(token18D), DEV, liquidityParameters.amountX);
+        deal(USDC, DEV, liquidityParameters.amountY);
+        token18D.approve(address(LBLegacyRouter), liquidityParameters.amountX);
+        IERC20(USDC).approve(address(LBLegacyRouter), liquidityParameters.amountY);
+
+        LBLegacyRouter.addLiquidity(Utils.toLegacy(liquidityParameters));
+
+        vm.expectRevert(IJoeDexLens.JoeDexLens__PairsNotCreated.selector);
+        tokenPrice = joeDexLens.getTokenPriceUSD(address(token18D));
+
+        // Add enough liquidity this time
+        liquidityParameters = getLiquidityParameters(token18D, IERC20(USDC), 10e6, 8361297, 3, 0);
+
+        deal(address(token18D), DEV, liquidityParameters.amountX);
+        deal(USDC, DEV, liquidityParameters.amountY);
+        token18D.approve(address(LBLegacyRouter), liquidityParameters.amountX);
+        IERC20(USDC).approve(address(LBLegacyRouter), liquidityParameters.amountY);
+
+        LBLegacyRouter.addLiquidity(Utils.toLegacy(liquidityParameters));
+
+        tokenPrice = joeDexLens.getTokenPriceUSD(address(token18D));
+
+        assertApproxEqRel(tokenPrice, 2e6, 3e16);
     }
 
     function test_PriceWithoutDataFeeds_V2_1() public {
-        lbRouter.createLBPair(token18D, IERC20(USDC), 1 << 23, DEFAULT_BIN_STEP * 2);
+        useLegacyBinStep = false;
 
+        // 1 token18 = 2 USDC
+        lbRouter.createLBPair(token18D, IERC20(USDC), 8361297, DEFAULT_BIN_STEP * 2);
+
+        // Fails if there is no liquidity
+        vm.expectRevert(IJoeDexLens.JoeDexLens__PairsNotCreated.selector);
         uint256 tokenPrice = joeDexLens.getTokenPriceUSD(address(token18D));
 
-        console.log("tokenPrice: %s", tokenPrice);
+        // Add liquidity but not enough to meet the lens requirements for a valid price
+        ILBRouter.LiquidityParameters memory liquidityParameters =
+            getLiquidityParameters(token18D, IERC20(USDC), 0.1e6, 8361297, 67, 15);
+
+        deal(address(token18D), DEV, liquidityParameters.amountX);
+        deal(USDC, DEV, liquidityParameters.amountY);
+        token18D.approve(address(lbRouter), liquidityParameters.amountX);
+        IERC20(USDC).approve(address(lbRouter), liquidityParameters.amountY);
+
+        lbRouter.addLiquidity(liquidityParameters);
+
+        vm.expectRevert(IJoeDexLens.JoeDexLens__PairsNotCreated.selector);
+        tokenPrice = joeDexLens.getTokenPriceUSD(address(token18D));
+
+        // Add enough liquidity this time
+        liquidityParameters = getLiquidityParameters(token18D, IERC20(USDC), 10e6, 8361297, 3, 0);
+
+        deal(address(token18D), DEV, liquidityParameters.amountX);
+        deal(USDC, DEV, liquidityParameters.amountY);
+        token18D.approve(address(lbRouter), liquidityParameters.amountX);
+        IERC20(USDC).approve(address(lbRouter), liquidityParameters.amountY);
+
+        lbRouter.addLiquidity(liquidityParameters);
+
+        tokenPrice = joeDexLens.getTokenPriceUSD(address(token18D));
+
+        assertApproxEqRel(tokenPrice, 2e6, 3e16);
     }
 }
 

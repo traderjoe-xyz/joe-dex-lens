@@ -16,7 +16,10 @@ import "../src/interfaces/AggregatorV3Interface.sol";
 import "./mocks/ERC20MockDecimals.sol";
 
 abstract contract TestHelper is Test {
+    using Utils for ILBRouter.LiquidityParameters;
     using Uint256x256Math for uint256;
+    using Utils for uint256[];
+    using Utils for int256[];
 
     address payable internal immutable DEV = payable(address(this));
     address internal immutable ALICE = makeAddr("alice");
@@ -59,6 +62,8 @@ abstract contract TestHelper is Test {
     address public constant NativeUSDC20bps = 0xc8aa3bF8623C35EAc518Ea82B55C2aa46D5A02f6;
 
     JoeDexLens public joeDexLens;
+
+    bool useLegacyBinStep = true;
 
     function setUp() public virtual {
         lbFactory = new LBFactory(DEV,  DEFAULT_FLASHLOAN_FEE);
@@ -201,5 +206,125 @@ abstract contract TestHelper is Test {
     {
         dfs = new IJoeDexLens.DataFeed[](1);
         dfs[0] = df;
+    }
+
+    function getLiquidityParameters(
+        IERC20 tokenX,
+        IERC20 tokenY,
+        uint256 amountYIn,
+        uint24 startId,
+        uint24 numberBins,
+        uint24 gap
+    ) internal view returns (ILBRouter.LiquidityParameters memory liquidityParameters) {
+        (uint256[] memory ids, uint256[] memory distributionX, uint256[] memory distributionY, uint256 amountXIn) =
+            spreadLiquidity(amountYIn, startId, numberBins, gap);
+
+        liquidityParameters = ILBRouter.LiquidityParameters({
+            tokenX: tokenX,
+            tokenY: tokenY,
+            binStep: useLegacyBinStep ? DEFAULT_BIN_STEP : DEFAULT_BIN_STEP * 2,
+            amountX: amountXIn,
+            amountY: amountYIn,
+            amountXMin: 0,
+            amountYMin: 0,
+            activeIdDesired: startId,
+            idSlippage: 0,
+            deltaIds: ids.convertToRelative(startId),
+            distributionX: distributionX,
+            distributionY: distributionY,
+            to: DEV,
+            refundTo: DEV,
+            deadline: block.timestamp + 1000
+        });
+    }
+
+    function spreadLiquidity(uint256 amountYIn, uint24 startId, uint24 numberBins, uint24 gap)
+        internal
+        view
+        returns (
+            uint256[] memory ids,
+            uint256[] memory distributionX,
+            uint256[] memory distributionY,
+            uint256 amountXIn
+        )
+    {
+        if (numberBins % 2 == 0) {
+            revert("Pls put an uneven number of bins");
+        }
+
+        uint24 spread = numberBins / 2;
+        ids = new uint256[](numberBins);
+
+        distributionX = new uint256[](numberBins);
+        distributionY = new uint256[](numberBins);
+        uint256 binDistribution = Constants.PRECISION / (spread + 1);
+        uint256 binLiquidity = amountYIn / (spread + 1);
+
+        for (uint256 i; i < numberBins; i++) {
+            ids[i] = startId - spread * (1 + gap) + i * (1 + gap);
+
+            if (i <= spread) {
+                distributionY[i] = binDistribution;
+            }
+            if (i >= spread) {
+                distributionX[i] = binDistribution;
+                amountXIn += binLiquidity > 0
+                    ? binLiquidity.shiftDivRoundDown(Constants.SCALE_OFFSET, getPriceFromId(uint24(ids[i])))
+                    : 0;
+            }
+        }
+    }
+
+    function getPriceFromId(uint24 id) internal view returns (uint256 price) {
+        price = PriceHelper.getPriceFromId(id, useLegacyBinStep ? DEFAULT_BIN_STEP * 2 : DEFAULT_BIN_STEP);
+    }
+}
+
+library Utils {
+    function convertToAbsolute(int256[] memory relativeIds, uint24 startId)
+        internal
+        pure
+        returns (uint256[] memory absoluteIds)
+    {
+        absoluteIds = new uint256[](relativeIds.length);
+        for (uint256 i = 0; i < relativeIds.length; i++) {
+            int256 id = int256(uint256(startId)) + relativeIds[i];
+            require(id >= 0, "Id conversion: id must be positive");
+            absoluteIds[i] = uint256(id);
+        }
+    }
+
+    function convertToRelative(uint256[] memory absoluteIds, uint24 startId)
+        internal
+        pure
+        returns (int256[] memory relativeIds)
+    {
+        relativeIds = new int256[](absoluteIds.length);
+        for (uint256 i = 0; i < absoluteIds.length; i++) {
+            relativeIds[i] = int256(absoluteIds[i]) - int256(uint256(startId));
+        }
+    }
+
+    function toLegacy(ILBRouter.LiquidityParameters memory liquidityParameters)
+        internal
+        pure
+        returns (ILBLegacyRouter.LiquidityParameters memory legacyLiquidityParameters)
+    {
+        legacyLiquidityParameters = ILBLegacyRouter.LiquidityParameters({
+            tokenX: liquidityParameters.tokenX,
+            tokenY: liquidityParameters.tokenY,
+            binStep: liquidityParameters.binStep,
+            amountX: liquidityParameters.amountX,
+            amountY: liquidityParameters.amountY,
+            amountXMin: liquidityParameters.amountXMin,
+            amountYMin: liquidityParameters.amountYMin,
+            activeIdDesired: liquidityParameters.activeIdDesired,
+            idSlippage: liquidityParameters.idSlippage,
+            deltaIds: liquidityParameters.deltaIds,
+            distributionX: liquidityParameters.distributionX,
+            distributionY: liquidityParameters.distributionY,
+            to: liquidityParameters.to,
+            deadline: liquidityParameters.deadline
+        });
     }
 }
