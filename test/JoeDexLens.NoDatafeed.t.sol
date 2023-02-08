@@ -65,6 +65,12 @@ contract TestJoeDexLens_ is TestHelper {
         tokenPrice = joeDexLens.getTokenPriceUSD(address(token18D));
 
         assertApproxEqRel(tokenPrice, 2e6, 3e16);
+
+        // Should also work with the other collateral
+        uint256 tokenPriceNative = joeDexLens.getTokenPriceNative(address(token18D));
+        uint256 nativePriceUSD = joeDexLens.getTokenPriceUSD(wNative);
+
+        assertApproxEqRel(tokenPriceNative * nativePriceUSD / 1e18, 2e6, 3e16);
     }
 
     function test_PriceWithoutDataFeeds_V2_1() public {
@@ -104,6 +110,12 @@ contract TestJoeDexLens_ is TestHelper {
         tokenPrice = joeDexLens.getTokenPriceUSD(address(token18D));
 
         assertApproxEqRel(tokenPrice, 2e6, 3e16);
+
+        // Should also work with the other collateral
+        uint256 tokenPriceNative = joeDexLens.getTokenPriceNative(address(token18D));
+        uint256 nativePriceUSD = joeDexLens.getTokenPriceUSD(wNative);
+
+        assertApproxEqRel(tokenPriceNative * nativePriceUSD / 1e18, 2e6, 3e16);
     }
 }
 

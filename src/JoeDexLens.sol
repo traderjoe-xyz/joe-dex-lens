@@ -725,12 +725,37 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     /// @param token The address of the token
     /// @return price The weighted average, based on pair's liquidity, of the token with the collateral's decimals
     function _getPriceAnyToken(address collateral, address token) private view returns (uint256 price) {
+        // First check the token price on v2.1
         price = _v2_1FallbackPrice(collateral, token);
 
+        // Then on v2
         if (price == 0) {
             price = _v2FallbackPrice(collateral, token);
         }
 
+        // If none of the above worked, check with the other collateral
+        if (price == 0) {
+            address otherCollateral = collateral == _WNATIVE ? _USD_STABLE_COIN : _WNATIVE;
+
+            // First check the token price on v2.1
+            uint256 priceTokenOtherCollateral = _v2_1FallbackPrice(otherCollateral, token);
+
+            // Then on v2
+            if (priceTokenOtherCollateral == 0) {
+                priceTokenOtherCollateral = _v2FallbackPrice(otherCollateral, token);
+            }
+
+            // If it worked, convert the price with the correct collateral
+            if (priceTokenOtherCollateral > 0) {
+                uint256 collateralPrice = _getTokenWeightedAveragePrice(otherCollateral, collateral);
+
+                uint256 decimals = IERC20Metadata(collateral).decimals();
+                // Both price are in the same decimals
+                return priceTokenOtherCollateral * 10 ** decimals / collateralPrice;
+            }
+        }
+
+        // If none of the above worked, check on v1 pairs
         if (price == 0) {
             price = _v1FallbackPrice(collateral, token);
         }
