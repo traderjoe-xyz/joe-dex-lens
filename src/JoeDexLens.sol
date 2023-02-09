@@ -35,8 +35,6 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     address private immutable _WNATIVE;
     address private immutable _USD_STABLE_COIN;
 
-    uint256 private constant _MIN_AMOUNT = 1e16;
-    uint256 private constant _BASIS_POINTS = 1e18;
     uint256 private constant _BIN_WIDTH = 5;
 
     /// @dev Mapping from a collateral token to a token to an enumerable set of data feeds used to get the price of the token in collateral
@@ -865,7 +863,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
         // Skip if the reserves of the _BIN_WIDTH bin around the active bin are too low
         reserveX = reserveY = 0;
-        for (uint256 i = activeId - _BIN_WIDTH; i < activeId + _BIN_WIDTH; i++) {
+        for (uint256 i = activeId - _BIN_WIDTH; i <= activeId + _BIN_WIDTH; i++) {
             (uint256 binReserveX, uint256 binReserveY) = pair.getBin(uint24(i));
             reserveX += binReserveX;
             reserveY += binReserveY;
@@ -892,7 +890,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
         // Skip if the reserves of the _BIN_WIDTH bin around the active bin are too low
         reserveX = reserveY = 0;
-        for (uint256 i = activeId - _BIN_WIDTH; i < activeId + _BIN_WIDTH; i++) {
+        for (uint256 i = activeId - _BIN_WIDTH; i <= activeId + _BIN_WIDTH; i++) {
             (uint256 binReserveX, uint256 binReserveY) = pair.getBin(uint24(i));
             reserveX += binReserveX;
             reserveY += binReserveY;
@@ -910,8 +908,8 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         pure
         returns (bool isValid)
     {
-        return reserveX > (_MIN_AMOUNT * 10 ** tokenXDecimals) / _BASIS_POINTS
-            && reserveY > (_MIN_AMOUNT * 10 ** tokenYDecimals) / _BASIS_POINTS;
+        // Need a least of unit of each token in the reserves
+        return reserveX > 10 ** tokenXDecimals && reserveY > 10 ** tokenYDecimals;
     }
 
     /// @notice Return the price in collateral of a token from a V1 pair
