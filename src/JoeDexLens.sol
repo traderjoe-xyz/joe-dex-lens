@@ -908,7 +908,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         pure
         returns (bool isValid)
     {
-        // Need a least of unit of each token in the reserves
+        // Need a least one unit of each token in the reserves
         return reserveX > 10 ** tokenXDecimals && reserveY > 10 ** tokenYDecimals;
     }
 
