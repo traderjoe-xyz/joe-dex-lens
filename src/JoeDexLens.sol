@@ -749,9 +749,11 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
             if (priceTokenOtherCollateral > 0) {
                 uint256 collateralPrice = _getTokenWeightedAveragePrice(otherCollateral, collateral);
 
-                uint256 decimals = IERC20Metadata(collateral).decimals();
-                // Both price are in the same decimals
-                return priceTokenOtherCollateral * 10 ** decimals / collateralPrice;
+                uint256 collateralDecimals = IERC20Metadata(collateral).decimals();
+                uint256 otherCollateralDecimals = IERC20Metadata(otherCollateral).decimals();
+
+                price = priceTokenOtherCollateral * 10 ** (_DECIMALS + collateralDecimals - otherCollateralDecimals)
+                    / collateralPrice;
             }
         }
 

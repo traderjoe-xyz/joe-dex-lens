@@ -23,11 +23,41 @@ contract TestJoeDexLens_ is TestHelper {
         vm.expectRevert(IJoeDexLens.JoeDexLens__PairsNotCreated.selector);
         joeDexLens.getTokenPriceUSD(address(1));
 
-        uint256 priceUSD = joeDexLens.getTokenPriceNative(WETH);
-        uint256 priceNative = joeDexLens.getTokenPriceUSD(WETH);
+        // 1 token18 = 2 USDC
+        uint256 amountToken18D = 1e18;
+        uint256 amountUSD = 2e6;
 
-        assertApproxEqRel(priceUSD, 0.335e18, 3e16);
-        assertApproxEqRel(priceNative, 6.68e18, 3e16);
+        deal(address(token18D), DEV, 2 * amountToken18D);
+        deal(USDC, DEV, amountUSD);
+        deal(wNative, DEV, 20 * amountUSD);
+        token18D.approve(address(routerV1), 2 * amountToken18D);
+        IERC20(wNative).approve(address(routerV1), amountUSD);
+        IERC20(USDC).approve(address(routerV1), amountUSD);
+
+        IJoeRouter02(routerV1).addLiquidity(
+            address(token18D), USDC, amountToken18D, amountUSD, 0, 0, address(this), block.timestamp + 1
+        );
+
+        uint256 priceUSD = joeDexLens.getTokenPriceUSD(address(token18D));
+
+        uint256 tokenPriceNative = joeDexLens.getTokenPriceNative(address(token18D));
+        uint256 nativePriceUSD = joeDexLens.getTokenPriceUSD(wNative);
+
+        assertApproxEqRel(priceUSD, 2e6, 3e16, "test_PriceWithoutDataFeeds_V1::1");
+        assertApproxEqRel(tokenPriceNative * nativePriceUSD / 1e30, priceUSD, 3e16, "test_PriceWithoutDataFeeds_V1::2");
+
+        // Should still work after adding the second fallback pair
+        IJoeRouter02(routerV1).addLiquidity(
+            address(token18D), wNative, amountToken18D, amountUSD / 20, 0, 0, address(this), block.timestamp + 1
+        );
+
+        priceUSD = joeDexLens.getTokenPriceUSD(address(token18D));
+
+        tokenPriceNative = joeDexLens.getTokenPriceNative(address(token18D));
+        nativePriceUSD = joeDexLens.getTokenPriceUSD(wNative);
+
+        assertApproxEqRel(priceUSD, 2e6, 3e16, "test_PriceWithoutDataFeeds_V1::1");
+        assertApproxEqRel(tokenPriceNative * nativePriceUSD / 1e30, priceUSD, 3e16, "test_PriceWithoutDataFeeds_V1::2");
     }
 
     function test_PriceWithoutDataFeeds_LegacyV2() public {
@@ -70,7 +100,7 @@ contract TestJoeDexLens_ is TestHelper {
         uint256 tokenPriceNative = joeDexLens.getTokenPriceNative(address(token18D));
         uint256 nativePriceUSD = joeDexLens.getTokenPriceUSD(wNative);
 
-        assertApproxEqRel(tokenPriceNative * nativePriceUSD / 1e18, 2e6, 3e16);
+        assertApproxEqRel(tokenPriceNative * nativePriceUSD / 1e30, tokenPrice, 3e16);
     }
 
     function test_PriceWithoutDataFeeds_V2_1() public {
@@ -115,7 +145,7 @@ contract TestJoeDexLens_ is TestHelper {
         uint256 tokenPriceNative = joeDexLens.getTokenPriceNative(address(token18D));
         uint256 nativePriceUSD = joeDexLens.getTokenPriceUSD(wNative);
 
-        assertApproxEqRel(tokenPriceNative * nativePriceUSD / 1e18, 2e6, 3e16);
+        assertApproxEqRel(tokenPriceNative * nativePriceUSD / 1e30, tokenPrice, 3e16);
     }
 }
 

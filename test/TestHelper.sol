@@ -93,6 +93,10 @@ abstract contract TestHelper is Test {
         vm.label(address(LBLegacyFactory), "legacyFactory");
         vm.label(address(LBLegacyRouter), "legacyRouter");
         vm.label(address(factoryV1), "joeFactoryV1");
+        vm.label(USDC, "usdc");
+        vm.label(USDT, "usdt");
+        vm.label(WETH, "weth");
+        vm.label(wNative, "wNative");
     }
 
     function createPairAndAddToUSDDataFeeds(address tokenX, address tokenY, uint24 id, IJoeDexLens.dfType pairType)
