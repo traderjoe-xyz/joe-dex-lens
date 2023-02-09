@@ -2,22 +2,32 @@
 
 pragma solidity ^0.8.0;
 
-import "joe-v2/libraries/math/Uint256x256Math.sol";
-import "joe-v2/libraries/Constants.sol";
-import "joe-v2/interfaces/ILBLegacyPair.sol";
-import "joe-v2/interfaces/IJoePair.sol";
-import "joe-v2/interfaces/ILBRouter.sol";
-import "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
-import "solrary/access/SafeAccessControlEnumerable.sol";
+import {Constants} from "joe-v2/libraries/Constants.sol";
+import {IJoeFactory} from "joe-v2/interfaces/IJoeFactory.sol";
+import {IJoePair} from "joe-v2/interfaces/IJoePair.sol";
+import {ILBFactory} from "joe-v2/interfaces/ILBFactory.sol";
+import {ILBLegacyFactory} from "joe-v2/interfaces/ILBLegacyFactory.sol";
+import {ILBLegacyPair} from "joe-v2/interfaces/ILBLegacyPair.sol";
+import {ILBLegacyRouter} from "joe-v2/interfaces/ILBLegacyRouter.sol";
+import {ILBPair} from "joe-v2/interfaces/ILBPair.sol";
+import {ILBRouter} from "joe-v2/interfaces/ILBRouter.sol";
+import {Uint256x256Math} from "joe-v2/libraries/math/Uint256x256Math.sol";
+import {IERC20Metadata, IERC20} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
+import {
+    ISafeAccessControlEnumerable, SafeAccessControlEnumerable
+} from "solrary/access/SafeAccessControlEnumerable.sol";
 
-import "./interfaces/IJoeDexLens.sol";
+import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
+import {IJoeDexLens} from "./interfaces/IJoeDexLens.sol";
 
-/// @title Joe Dex Lens
-/// @author Trader Joe
-/// @notice This contract allows to price tokens in either Native or a usd stable token.
-/// It could be easily extended to any collateral. Owner can grant or revoke role to add data feeds to price a token
-/// and can set the weight of the different data feeds. When no data feed is provided for both collateral, the contract
-/// will use the TOKEN/WNative and TOKEN/USD V1 pool to try to price the asset
+/**
+ * @title Joe Dex Lens
+ * @author Trader Joe
+ * @notice This contract allows to price tokens in either Native or a usd stable token.
+ * It could be easily extended to any collateral. Owner can grant or revoke role to add data feeds to price a token
+ * and can set the weight of the different data feeds. When no data feed is provided for both collateral, the contract
+ * will use cascade through TOKEN/WNative and TOKEN/USD pools on v2.1, v2 and v1 to find a price.
+ */
 contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     using Uint256x256Math for uint256;
 
@@ -37,32 +47,38 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
     uint256 private constant _BIN_WIDTH = 5;
 
-    /// @dev Mapping from a collateral token to a token to an enumerable set of data feeds used to get the price of the token in collateral
-    /// e.g. STABLECOIN => Native will return datafeeds to get the price of Native in USD
-    /// And Native => JOE will return datafeeds to get the price of JOE in Native
+    /**
+     * @dev Mapping from a collateral token to a token to an enumerable set of data feeds used to get the price of the token in collateral
+     * e.g. STABLECOIN => Native will return datafeeds to get the price of Native in USD
+     * And Native => JOE will return datafeeds to get the price of JOE in Native
+     */
     mapping(address => mapping(address => DataFeedSet)) private _whitelistedDataFeeds;
 
     /**
      * Modifiers *
      */
 
-    /// @notice Verify that the two lengths match
-    /// @dev Revert if length are not equal
-    /// @param lengthA The length of the first list
-    /// @param lengthB The length of the second list
+    /**
+     * @notice Verify that the two lengths match
+     * @dev Revert if length are not equal
+     * @param lengthA The length of the first list
+     * @param lengthB The length of the second list
+     */
     modifier verifyLengths(uint256 lengthA, uint256 lengthB) {
         if (lengthA != lengthB) revert JoeDexLens__LengthsMismatch();
         _;
     }
 
-    /// @notice Verify a data feed
-    /// @dev Revert if :
-    /// - The collateral and the token are the same address
-    /// - The collateral is not one of the two tokens of the pair (if the dfType is V1 or V2)
-    /// - The token is not one of the two tokens of the pair (if the dfType is V1 or V2)
-    /// @param collateral The address of the collateral (STABLECOIN or WNATIVE)
-    /// @param token The address of the token
-    /// @param dataFeed The data feeds information
+    /**
+     * @notice Verify a data feed
+     * @dev Revert if :
+     * - The collateral and the token are the same address
+     * - The collateral is not one of the two tokens of the pair (if the dfType is V1 or V2)
+     * - The token is not one of the two tokens of the pair (if the dfType is V1 or V2)
+     * @param collateral The address of the collateral (STABLECOIN or WNATIVE)
+     * @param token The address of the token
+     * @param dataFeed The data feeds information
+     */
     modifier verifyDataFeed(address collateral, address token, DataFeed calldata dataFeed) {
         if (collateral == token) revert JoeDexLens__SameTokens();
 
@@ -77,9 +93,11 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         _;
     }
 
-    /// @notice Verify the weight for a data feed
-    /// @dev Revert if the weight is equal to 0
-    /// @param weight The weight of a data feed
+    /**
+     * @notice Verify the weight for a data feed
+     * @dev Revert if the weight is equal to 0
+     * @param weight The weight of a data feed
+     */
     modifier verifyWeight(uint88 weight) {
         if (weight == 0) revert JoeDexLens__NullWeight();
         _;
@@ -103,80 +121,112 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      * External View Functions *
      */
 
-    /// @notice Returns the address of the wrapped native token
-    /// @return wNative The address of the wrapped native token
+    /**
+     * @notice Returns the address of the wrapped native token
+     * @return wNative The address of the wrapped native token
+     */
     function getWNative() external view override returns (address wNative) {
         return _WNATIVE;
     }
 
-    /// @notice Returns the address of the usd stable coin
-    /// @return stableCoin The address of the usd stable coin
+    /**
+     * @notice Returns the address of the usd stable coin
+     * @return stableCoin The address of the usd stable coin
+     */
     function getUSDStableCoin() external view override returns (address stableCoin) {
         return _USD_STABLE_COIN;
     }
 
-    /// @notice Returns the address of the router V2
-    /// @return legacyRouterV2 The address of the router V2
+    /**
+     * @notice Returns the address of the router v2
+     * @return legacyRouterV2 The address of the router v2
+     */
     function getLegacyRouterV2() external view override returns (ILBLegacyRouter legacyRouterV2) {
         return _LEGACY_ROUTER_V2;
     }
 
+    /**
+     * @notice Returns the address of the router v2.1
+     * @return routerV2 The address of the router v2.1
+     */
     function getRouterV2() external view override returns (ILBRouter routerV2) {
         return _ROUTER_V2_1;
     }
 
-    /// @notice Returns the address of the factory V1
-    /// @return factoryV1 The address of the factory V1
+    /**
+     * @notice Returns the address of the factory v1
+     * @return factoryV1 The address of the factory v1
+     */
     function getFactoryV1() external view override returns (IJoeFactory factoryV1) {
         return _FACTORY_V1;
     }
 
+    /**
+     * @notice Returns the address of the factory v2
+     * @return legacyFactoryV2 The address of the factory v2
+     */
     function getLegacyFactoryV2() external view override returns (ILBLegacyFactory legacyFactoryV2) {
         return _LEGACY_FACTORY_V2;
     }
 
+    /**
+     * @notice Returns the address of the factory v2.1
+     * @return factoryV2 The address of the factory v2.1
+     */
     function getFactoryV2() external view override returns (ILBFactory factoryV2) {
         return _FACTORY_V2_1;
     }
 
-    /// @notice Returns the list of data feeds used to calculate the price of the token in stable coin
-    /// @param token The address of the token
-    /// @return dataFeeds The array of data feeds used to price `token` in stable coin
+    /**
+     * @notice Returns the list of data feeds used to calculate the price of the token in stable coin
+     * @param token The address of the token
+     * @return dataFeeds The array of data feeds used to price `token` in stable coin
+     */
     function getUSDDataFeeds(address token) external view override returns (DataFeed[] memory dataFeeds) {
         return _whitelistedDataFeeds[_USD_STABLE_COIN][token].dataFeeds;
     }
 
-    /// @notice Returns the list of data feeds used to calculate the price of the token in Native
-    /// @param token The address of the token
-    /// @return dataFeeds The array of data feeds used to price `token` in Native
+    /**
+     * @notice Returns the list of data feeds used to calculate the price of the token in Native
+     * @param token The address of the token
+     * @return dataFeeds The array of data feeds used to price `token` in Native
+     */
     function getNativeDataFeeds(address token) external view override returns (DataFeed[] memory dataFeeds) {
         return _whitelistedDataFeeds[_WNATIVE][token].dataFeeds;
     }
 
-    /// @notice Returns the price of token in USD, scaled with 6 decimals
-    /// @param token The address of the token
-    /// @return price The price of the token in USD, with 6 decimals
+    /**
+     * @notice Returns the price of token in USD, scaled with 6 decimals
+     * @param token The address of the token
+     * @return price The price of the token in USD, with 6 decimals
+     */
     function getTokenPriceUSD(address token) external view override returns (uint256 price) {
         return _getTokenWeightedAveragePrice(_USD_STABLE_COIN, token);
     }
 
-    /// @notice Returns the price of token in Native, scaled with `_DECIMALS` decimals
-    /// @param token The address of the token
-    /// @return price The price of the token in Native, with `_DECIMALS` decimals
+    /**
+     * @notice Returns the price of token in Native, scaled with `_DECIMALS` decimals
+     * @param token The address of the token
+     * @return price The price of the token in Native, with `_DECIMALS` decimals
+     */
     function getTokenPriceNative(address token) external view override returns (uint256 price) {
         return _getTokenWeightedAveragePrice(_WNATIVE, token);
     }
 
-    /// @notice Returns the prices of each token in USD, scaled with 6 decimals
-    /// @param tokens The list of address of the tokens
-    /// @return prices The prices of each token in USD, with 6 decimals
+    /**
+     * @notice Returns the prices of each token in USD, scaled with 6 decimals
+     * @param tokens The list of address of the tokens
+     * @return prices The prices of each token in USD, with 6 decimals
+     */
     function getTokensPricesUSD(address[] calldata tokens) external view override returns (uint256[] memory prices) {
         return _getTokenWeightedAveragePrices(_USD_STABLE_COIN, tokens);
     }
 
-    /// @notice Returns the prices of each token in Native, scaled with `_DECIMALS` decimals
-    /// @param tokens The list of address of the tokens
-    /// @return prices The prices of each token in Native, with `_DECIMALS` decimals
+    /**
+     * @notice Returns the prices of each token in Native, scaled with `_DECIMALS` decimals
+     * @param tokens The list of address of the tokens
+     * @return prices The prices of each token in Native, with `_DECIMALS` decimals
+     */
     function getTokensPricesNative(address[] calldata tokens)
         external
         view
@@ -190,10 +240,12 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      * Owner Functions *
      */
 
-    /// @notice Add a USD data feed for a specific token
-    /// @dev Can only be called by the owner
-    /// @param token The address of the token
-    /// @param dataFeed The USD data feeds information
+    /**
+     * @notice Add a USD data feed for a specific token
+     * @dev Can only be called by the owner
+     * @param token The address of the token
+     * @param dataFeed The USD data feeds information
+     */
     function addUSDDataFeed(address token, DataFeed calldata dataFeed)
         external
         override
@@ -202,10 +254,12 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         _addDataFeed(_USD_STABLE_COIN, token, dataFeed);
     }
 
-    /// @notice Add a Native data feed for a specific token
-    /// @dev Can only be called by the owner
-    /// @param token The address of the token
-    /// @param dataFeed The Native data feeds information
+    /**
+     * @notice Add a Native data feed for a specific token
+     * @dev Can only be called by the owner
+     * @param token The address of the token
+     * @param dataFeed The Native data feeds information
+     */
     function addNativeDataFeed(address token, DataFeed calldata dataFeed)
         external
         override
@@ -214,11 +268,13 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         _addDataFeed(_WNATIVE, token, dataFeed);
     }
 
-    /// @notice Set the USD weight for a specific data feed of a token
-    /// @dev Can only be called by the owner
-    /// @param token The address of the token
-    /// @param dfAddress The USD data feed address
-    /// @param newWeight The new weight of the data feed
+    /**
+     * @notice Set the USD weight for a specific data feed of a token
+     * @dev Can only be called by the owner
+     * @param token The address of the token
+     * @param dfAddress The USD data feed address
+     * @param newWeight The new weight of the data feed
+     */
     function setUSDDataFeedWeight(address token, address dfAddress, uint88 newWeight)
         external
         override
@@ -227,11 +283,13 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         _setDataFeedWeight(_USD_STABLE_COIN, token, dfAddress, newWeight);
     }
 
-    /// @notice Set the Native weight for a specific data feed of a token
-    /// @dev Can only be called by the owner
-    /// @param token The address of the token
-    /// @param dfAddress The data feed address
-    /// @param newWeight The new weight of the data feed
+    /**
+     * @notice Set the Native weight for a specific data feed of a token
+     * @dev Can only be called by the owner
+     * @param token The address of the token
+     * @param dfAddress The data feed address
+     * @param newWeight The new weight of the data feed
+     */
     function setNativeDataFeedWeight(address token, address dfAddress, uint88 newWeight)
         external
         override
@@ -240,10 +298,12 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         _setDataFeedWeight(_WNATIVE, token, dfAddress, newWeight);
     }
 
-    /// @notice Remove a USD data feed of a token
-    /// @dev Can only be called by the owner
-    /// @param token The address of the token
-    /// @param dfAddress The USD data feed address
+    /**
+     * @notice Remove a USD data feed of a token
+     * @dev Can only be called by the owner
+     * @param token The address of the token
+     * @param dfAddress The USD data feed address
+     */
     function removeUSDDataFeed(address token, address dfAddress)
         external
         override
@@ -252,10 +312,12 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         _removeDataFeed(_USD_STABLE_COIN, token, dfAddress);
     }
 
-    /// @notice Remove a Native data feed of a token
-    /// @dev Can only be called by the owner
-    /// @param token The address of the token
-    /// @param dfAddress The data feed address
+    /**
+     * @notice Remove a Native data feed of a token
+     * @dev Can only be called by the owner
+     * @param token The address of the token
+     * @param dfAddress The data feed address
+     */
     function removeNativeDataFeed(address token, address dfAddress)
         external
         override
@@ -264,10 +326,12 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         _removeDataFeed(_WNATIVE, token, dfAddress);
     }
 
-    /// @notice Batch add USD data feed for each (token, data feed)
-    /// @dev Can only be called by the owner
-    /// @param tokens The addresses of the tokens
-    /// @param dataFeeds The list of USD data feeds informations
+    /**
+     * @notice Batch add USD data feed for each (token, data feed)
+     * @dev Can only be called by the owner
+     * @param tokens The addresses of the tokens
+     * @param dataFeeds The list of USD data feeds informations
+     */
     function addUSDDataFeeds(address[] calldata tokens, DataFeed[] calldata dataFeeds)
         external
         override
@@ -276,10 +340,12 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         _addDataFeeds(_USD_STABLE_COIN, tokens, dataFeeds);
     }
 
-    /// @notice Batch add Native data feed for each (token, data feed)
-    /// @dev Can only be called by the owner
-    /// @param tokens The addresses of the tokens
-    /// @param dataFeeds The list of Native data feeds informations
+    /**
+     * @notice Batch add Native data feed for each (token, data feed)
+     * @dev Can only be called by the owner
+     * @param tokens The addresses of the tokens
+     * @param dataFeeds The list of Native data feeds informations
+     */
     function addNativeDataFeeds(address[] calldata tokens, DataFeed[] calldata dataFeeds)
         external
         override
@@ -288,11 +354,13 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         _addDataFeeds(_WNATIVE, tokens, dataFeeds);
     }
 
-    /// @notice Batch set the USD weight for each (token, data feed)
-    /// @dev Can only be called by the owner
-    /// @param tokens The list of addresses of the tokens
-    /// @param dfAddresses The list of USD data feed addresses
-    /// @param newWeights The list of new weights of the data feeds
+    /**
+     * @notice Batch set the USD weight for each (token, data feed)
+     * @dev Can only be called by the owner
+     * @param tokens The list of addresses of the tokens
+     * @param dfAddresses The list of USD data feed addresses
+     * @param newWeights The list of new weights of the data feeds
+     */
     function setUSDDataFeedsWeights(
         address[] calldata tokens,
         address[] calldata dfAddresses,
@@ -301,11 +369,13 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         _setDataFeedsWeights(_USD_STABLE_COIN, tokens, dfAddresses, newWeights);
     }
 
-    /// @notice Batch set the Native weight for each (token, data feed)
-    /// @dev Can only be called by the owner
-    /// @param tokens The list of addresses of the tokens
-    /// @param dfAddresses The list of Native data feed addresses
-    /// @param newWeights The list of new weights of the data feeds
+    /**
+     * @notice Batch set the Native weight for each (token, data feed)
+     * @dev Can only be called by the owner
+     * @param tokens The list of addresses of the tokens
+     * @param dfAddresses The list of Native data feed addresses
+     * @param newWeights The list of new weights of the data feeds
+     */
     function setNativeDataFeedsWeights(
         address[] calldata tokens,
         address[] calldata dfAddresses,
@@ -314,10 +384,12 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         _setDataFeedsWeights(_WNATIVE, tokens, dfAddresses, newWeights);
     }
 
-    /// @notice Batch remove a list of USD data feeds for each (token, data feed)
-    /// @dev Can only be called by the owner
-    /// @param tokens The list of addresses of the tokens
-    /// @param dfAddresses The list of USD data feed addresses
+    /**
+     * @notice Batch remove a list of USD data feeds for each (token, data feed)
+     * @dev Can only be called by the owner
+     * @param tokens The list of addresses of the tokens
+     * @param dfAddresses The list of USD data feed addresses
+     */
     function removeUSDDataFeeds(address[] calldata tokens, address[] calldata dfAddresses)
         external
         override
@@ -326,10 +398,12 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         _removeDataFeeds(_USD_STABLE_COIN, tokens, dfAddresses);
     }
 
-    /// @notice Batch remove a list of Native data feeds for each (token, data feed)
-    /// @dev Can only be called by the owner
-    /// @param tokens The list of addresses of the tokens
-    /// @param dfAddresses The list of Native data feed addresses
+    /**
+     * @notice Batch remove a list of Native data feeds for each (token, data feed)
+     * @dev Can only be called by the owner
+     * @param tokens The list of addresses of the tokens
+     * @param dfAddresses The list of Native data feed addresses
+     */
     function removeNativeDataFeeds(address[] calldata tokens, address[] calldata dfAddresses)
         external
         override
@@ -342,19 +416,23 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      * Private Functions *
      */
 
-    /// @notice Returns the data feed length for a specific collateral and a token
-    /// @param collateral The address of the collateral (USDC or WNATIVE)
-    /// @param token The address of the token
-    /// @return length The number of data feeds
+    /**
+     * @notice Returns the data feed length for a specific collateral and a token
+     * @param collateral The address of the collateral (USDC or WNATIVE)
+     * @param token The address of the token
+     * @return length The number of data feeds
+     */
     function _getDataFeedsLength(address collateral, address token) private view returns (uint256 length) {
         return _whitelistedDataFeeds[collateral][token].dataFeeds.length;
     }
 
-    /// @notice Returns the data feed at index `index` for a specific collateral and a token
-    /// @param collateral The address of the collateral (USDC or WNATIVE)
-    /// @param token The address of the token
-    /// @param index The index
-    /// @return dataFeed the data feed at index `index`
+    /**
+     * @notice Returns the data feed at index `index` for a specific collateral and a token
+     * @param collateral The address of the collateral (USDC or WNATIVE)
+     * @param token The address of the token
+     * @param index The index
+     * @return dataFeed the data feed at index `index`
+     */
     function _getDataFeedAt(address collateral, address token, uint256 index)
         private
         view
@@ -363,20 +441,24 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         return _whitelistedDataFeeds[collateral][token].dataFeeds[index];
     }
 
-    /// @notice Returns if a (tokens)'s set contains the data feed address
-    /// @param collateral The address of the collateral (USDC or WNATIVE)
-    /// @param token The address of the token
-    /// @param dfAddress The data feed address
-    /// @return Whether the set contains the data feed address (true) or not (false)
+    /**
+     * @notice Returns if a (tokens)'s set contains the data feed address
+     * @param collateral The address of the collateral (USDC or WNATIVE)
+     * @param token The address of the token
+     * @param dfAddress The data feed address
+     * @return Whether the set contains the data feed address (true) or not (false)
+     */
     function dataFeedContains(address collateral, address token, address dfAddress) private view returns (bool) {
         return _whitelistedDataFeeds[collateral][token].indexes[dfAddress] != 0;
     }
 
-    /// @notice Add a data feed to a set, return true if it was added, false if not
-    /// @param collateral The address of the collateral (USDC or WNATIVE)
-    /// @param token The address of the token
-    /// @param dataFeed The data feeds information
-    /// @return Whether the data feed was added (true) to the set or not (false)
+    /**
+     * @notice Add a data feed to a set, return true if it was added, false if not
+     * @param collateral The address of the collateral (USDC or WNATIVE)
+     * @param token The address of the token
+     * @param dataFeed The data feeds information
+     * @return Whether the data feed was added (true) to the set or not (false)
+     */
     function _addToSet(address collateral, address token, DataFeed calldata dataFeed) private returns (bool) {
         if (!dataFeedContains(collateral, token, dataFeed.dfAddress)) {
             DataFeedSet storage set = _whitelistedDataFeeds[collateral][token];
@@ -389,11 +471,13 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         }
     }
 
-    /// @notice Remove a data feed from a set, returns true if it was removed, false if not
-    /// @param collateral The address of the collateral (USDC or WNATIVE)
-    /// @param token The address of the token
-    /// @param dfAddress The data feed address
-    /// @return Whether the data feed was removed (true) from the set or not (false)
+    /**
+     * @notice Remove a data feed from a set, returns true if it was removed, false if not
+     * @param collateral The address of the collateral (USDC or WNATIVE)
+     * @param token The address of the token
+     * @param dfAddress The data feed address
+     * @return Whether the data feed was removed (true) from the set or not (false)
+     */
     function _removeFromSet(address collateral, address token, address dfAddress) private returns (bool) {
         DataFeedSet storage set = _whitelistedDataFeeds[collateral][token];
         uint256 dataFeedIndex = set.indexes[dfAddress];
@@ -418,10 +502,12 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         }
     }
 
-    /// @notice Add a data feed to a set, revert if it couldn't add it
-    /// @param collateral The address of the collateral (USDC or WNATIVE)
-    /// @param token The address of the token
-    /// @param dataFeed The data feeds information
+    /**
+     * @notice Add a data feed to a set, revert if it couldn't add it
+     * @param collateral The address of the collateral (USDC or WNATIVE)
+     * @param token The address of the token
+     * @param dataFeed The data feeds information
+     */
     function _addDataFeed(address collateral, address token, DataFeed calldata dataFeed)
         private
         verifyDataFeed(collateral, token, dataFeed)
@@ -434,10 +520,12 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         emit DataFeedAdded(collateral, token, dataFeed);
     }
 
-    /// @notice Batch add data feed for each (collateral, token, data feed)
-    /// @param collateral The address of the collateral (USDC or WNATIVE)
-    /// @param tokens The addresses of the tokens
-    /// @param dataFeeds The list of USD data feeds informations
+    /**
+     * @notice Batch add data feed for each (collateral, token, data feed)
+     * @param collateral The address of the collateral (USDC or WNATIVE)
+     * @param tokens The addresses of the tokens
+     * @param dataFeeds The list of USD data feeds informations
+     */
     function _addDataFeeds(address collateral, address[] calldata tokens, DataFeed[] calldata dataFeeds)
         private
         verifyLengths(tokens.length, dataFeeds.length)
@@ -451,11 +539,13 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         }
     }
 
-    /// @notice Set the weight for a specific data feed of a (collateral, token)
-    /// @param collateral The address of the collateral (USDC or WNATIVE)
-    /// @param token The address of the token
-    /// @param dfAddress The data feed address
-    /// @param newWeight The new weight of the data feed
+    /**
+     * @notice Set the weight for a specific data feed of a (collateral, token)
+     * @param collateral The address of the collateral (USDC or WNATIVE)
+     * @param token The address of the token
+     * @param dfAddress The data feed address
+     * @param newWeight The new weight of the data feed
+     */
     function _setDataFeedWeight(address collateral, address token, address dfAddress, uint88 newWeight)
         private
         verifyWeight(newWeight)
@@ -471,11 +561,13 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         emit DataFeedsWeightSet(collateral, token, dfAddress, newWeight);
     }
 
-    /// @notice Batch set the weight for each (collateral, token, data feed)
-    /// @param collateral The address of the collateral (USDC or WNATIVE)
-    /// @param tokens The list of addresses of the tokens
-    /// @param dfAddresses The list of USD data feed addresses
-    /// @param newWeights The list of new weights of the data feeds
+    /**
+     * @notice Batch set the weight for each (collateral, token, data feed)
+     * @param collateral The address of the collateral (USDC or WNATIVE)
+     * @param tokens The list of addresses of the tokens
+     * @param dfAddresses The list of USD data feed addresses
+     * @param newWeights The list of new weights of the data feeds
+     */
     function _setDataFeedsWeights(
         address collateral,
         address[] calldata tokens,
@@ -491,10 +583,12 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         }
     }
 
-    /// @notice Remove a data feed from a set, revert if it couldn't remove it
-    /// @param collateral The address of the collateral (USDC or WNATIVE)
-    /// @param token The address of the token
-    /// @param dfAddress The data feed address
+    /**
+     * @notice Remove a data feed from a set, revert if it couldn't remove it
+     * @param collateral The address of the collateral (USDC or WNATIVE)
+     * @param token The address of the token
+     * @param dfAddress The data feed address
+     */
     function _removeDataFeed(address collateral, address token, address dfAddress) private {
         if (!_removeFromSet(collateral, token, dfAddress)) {
             revert JoeDexLens__DataFeedNotInSet(collateral, token, dfAddress);
@@ -503,10 +597,12 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         emit DataFeedRemoved(collateral, token, dfAddress);
     }
 
-    /// @notice Batch remove a list of collateral data feeds for each (token, data feed)
-    /// @param collateral The address of the collateral (USDC or WNATIVE)
-    /// @param tokens The list of addresses of the tokens
-    /// @param dfAddresses The list of USD data feed addresses
+    /**
+     * @notice Batch remove a list of collateral data feeds for each (token, data feed)
+     * @param collateral The address of the collateral (USDC or WNATIVE)
+     * @param tokens The list of addresses of the tokens
+     * @param dfAddresses The list of USD data feed addresses
+     */
     function _removeDataFeeds(address collateral, address[] calldata tokens, address[] calldata dfAddresses)
         private
         verifyLengths(tokens.length, dfAddresses.length)
@@ -520,11 +616,13 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         }
     }
 
-    /// @notice Return the weighted average price of a token using its collateral data feeds
-    /// @dev If no data feed was provided, will use V1 TOKEN/Native and USDC/TOKEN pools to calculate the price of the token
-    /// @param collateral The address of the collateral (USDC or WNATIVE)
-    /// @param token The address of the token
-    /// @return price The weighted average price of the token, with the collateral's decimals
+    /**
+     * @notice Return the weighted average price of a token using its collateral data feeds
+     * @dev If no data feed was provided, will use `_getPriceAnyToken` to try to find a valid price
+     * @param collateral The address of the collateral (USDC or WNATIVE)
+     * @param token The address of the token
+     * @return price The weighted average price of the token, with the collateral's decimals
+     */
     function _getTokenWeightedAveragePrice(address collateral, address token) private view returns (uint256 price) {
         uint256 decimals = IERC20Metadata(collateral).decimals();
         if (collateral == token) return 10 ** decimals;
@@ -581,11 +679,13 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         else if (decimals > _DECIMALS) price *= 10 ** (decimals - _DECIMALS);
     }
 
-    /// @notice Batch function to return the weighted average price of each tokens using its collateral data feeds
-    /// @dev If no data feed was provided, will use V1 TOKEN/Native and USDC/TOKEN pools to calculate the price of the token
-    /// @param collateral The address of the collateral (USDC or WNATIVE)
-    /// @param tokens The list of addresses of the tokens
-    /// @return prices The list of weighted average price of each token, with the collateral's decimals
+    /**
+     * @notice Batch function to return the weighted average price of each tokens using its collateral data feeds
+     * @dev If no data feed was provided, will use `_getPriceAnyToken` to try to find a valid price
+     * @param collateral The address of the collateral (USDC or WNATIVE)
+     * @param tokens The list of addresses of the tokens
+     * @return prices The list of weighted average price of each token, with the collateral's decimals
+     */
     function _getTokenWeightedAveragePrices(address collateral, address[] calldata tokens)
         private
         view
@@ -601,9 +701,11 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         }
     }
 
-    /// @notice Return the price tracked by the aggreagator using chainlink's data feed, with `_DECIMALS` decimals
-    /// @param dfAddress The address of the data feed
-    /// @return price The price tracked by the aggreagator, with `_DECIMALS` decimals
+    /**
+     * @notice Return the price tracked by the aggreagator using chainlink's data feed, with `_DECIMALS` decimals
+     * @param dfAddress The address of the data feed
+     * @return price The price tracked by the aggreagator, with `_DECIMALS` decimals
+     */
     function _getPriceFromChainlink(address dfAddress) private view returns (uint256 price) {
         AggregatorV3Interface aggregator = AggregatorV3Interface(dfAddress);
 
@@ -619,11 +721,13 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         else if (aggregatorDecimals > _DECIMALS) price /= 10 ** (aggregatorDecimals - _DECIMALS);
     }
 
-    /// @notice Return the price of the token denominated in the second token of the V1 pair, with `_DECIMALS` decimals
-    /// @dev The `token` token needs to be on of the two paired token of the given pair
-    /// @param pairAddress The address of the pair
-    /// @param token The address of the token
-    /// @return price The price of the token, with `_DECIMALS` decimals
+    /**
+     * @notice Return the price of the token denominated in the second token of the V1 pair, with `_DECIMALS` decimals
+     * @dev The `token` token needs to be on of the two paired token of the given pair
+     * @param pairAddress The address of the pair
+     * @param token The address of the token
+     * @return price The price of the token, with `_DECIMALS` decimals
+     */
     function _getPriceFromV1(address pairAddress, address token) private view returns (uint256 price) {
         IJoePair pair = IJoePair(pairAddress);
 
@@ -645,11 +749,13 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         }
     }
 
-    /// @notice Return the price of the token denominated in the second token of the V2 pair, with `_DECIMALS` decimals
-    /// @dev The `token` token needs to be on of the two paired token of the given pair
-    /// @param pairAddress The address of the pair
-    /// @param token The address of the token
-    /// @return price The price of the token, with `_DECIMALS` decimals
+    /**
+     * @notice Return the price of the token denominated in the second token of the V2 pair, with `_DECIMALS` decimals
+     * @dev The `token` token needs to be on of the two paired token of the given pair
+     * @param pairAddress The address of the pair
+     * @param token The address of the token
+     * @return price The price of the token, with `_DECIMALS` decimals
+     */
     function _getPriceFromV2(address pairAddress, address token) private view returns (uint256 price) {
         ILBLegacyPair pair = ILBLegacyPair(pairAddress);
 
@@ -674,11 +780,13 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         }
     }
 
-    /// @notice Return the price of the token denominated in the second token of the V2.1 pair, with `_DECIMALS` decimals
-    /// @dev The `token` token needs to be on of the two paired token of the given pair
-    /// @param pairAddress The address of the pair
-    /// @param token The address of the token
-    /// @return price The price of the token, with `_DECIMALS` decimals
+    /**
+     * @notice Return the price of the token denominated in the second token of the V2.1 pair, with `_DECIMALS` decimals
+     * @dev The `token` token needs to be on of the two paired token of the given pair
+     * @param pairAddress The address of the pair
+     * @param token The address of the token
+     * @return price The price of the token, with `_DECIMALS` decimals
+     */
     function _getPriceFromV2_1(address pairAddress, address token) private view returns (uint256 price) {
         ILBPair pair = ILBPair(pairAddress);
 
@@ -703,11 +811,13 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         }
     }
 
-    /// @notice Return the addresses of the two tokens of a pair
-    /// @dev Work with both V1 or V2 pairs
-    /// @param dataFeed The data feeds information
-    /// @return tokenA The address of the first token of the pair
-    /// @return tokenB The address of the second token of the pair
+    /**
+     * @notice Return the addresses of the two tokens of a pair
+     * @dev Work with both V1 or V2 pairs
+     * @param dataFeed The data feeds information
+     * @return tokenA The address of the first token of the pair
+     * @return tokenB The address of the second token of the pair
+     */
     function _getTokens(DataFeed calldata dataFeed) private view returns (address tokenA, address tokenB) {
         if (dataFeed.dfType == dfType.V1) {
             IJoePair pair = IJoePair(dataFeed.dfAddress);
@@ -729,11 +839,15 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         }
     }
 
-    /// @notice Return the price of a token using TOKEN/Native and TOKEN/USDC V1 pairs, with `_DECIMALS` decimals
-    /// @dev If only one pair is available, will return the price on this pair, and will revert if no pools were created
-    /// @param collateral The address of the collateral (USDC or WNATIVE)
-    /// @param token The address of the token
-    /// @return price The weighted average, based on pair's liquidity, of the token with the collateral's decimals
+    /**
+     * @notice Tries to find the price of the token on v2.1, v2 and v1 pairs.
+     * V2.1 and v2 pairs are checked to have enough liquidity in them,
+     * to avoid pricing using stale pools
+     * @dev Will revert if no pools were created
+     * @param collateral The address of the collateral (USDC or WNATIVE)
+     * @param token The address of the token
+     * @return price The weighted average, based on pair's liquidity, of the token with the collateral's decimals
+     */
     function _getPriceAnyToken(address collateral, address token) private view returns (uint256 price) {
         // First check the token price on v2.1
         price = _v2_1FallbackPrice(collateral, token);
@@ -773,6 +887,12 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         }
     }
 
+    /**
+     * @notice Loops through all the collateral/token v2.1 pairs and returns the price of the token if a valid one was found
+     * @param collateral The address of the collateral
+     * @param token The address of the token
+     * @return price The price of the token, with the collateral's decimals (0 if no valid pair was found)
+     */
     function _v2_1FallbackPrice(address collateral, address token) private view returns (uint256 price) {
         ILBFactory.LBPairInformation[] memory lbPairsAvailable =
             _FACTORY_V2_1.getAllLBPairs(IERC20(collateral), IERC20(token));
@@ -792,6 +912,12 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         }
     }
 
+    /**
+     * @notice Loops through all the collateral/token v2 pairs and returns the price of the token if a valid one was found
+     * @param collateral The address of the collateral
+     * @param token The address of the token
+     * @return price The price of the token, with the collateral's decimals (0 if no valid pair was found)
+     */
     function _v2FallbackPrice(address collateral, address token) private view returns (uint256 price) {
         ILBLegacyFactory.LBPairInformation[] memory lbPairsAvailable =
             _LEGACY_FACTORY_V2.getAllLBPairs(IERC20(collateral), IERC20(token));
@@ -811,6 +937,12 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         }
     }
 
+    /**
+     * @notice Fetchs the collateral/token and otherCollateral/token v1 pairs and returns the price of the token if a valid one was found
+     * @param collateral The address of the collateral
+     * @param token The address of the token
+     * @return price The price of the token, with the collateral's decimals
+     */
     function _v1FallbackPrice(address collateral, address token) private view returns (uint256 price) {
         address pairTokenWNative = _FACTORY_V1.getPair(token, _WNATIVE);
         address pairTokenUsdc = _FACTORY_V1.getPair(token, _USD_STABLE_COIN);
@@ -847,6 +979,15 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         }
     }
 
+    /**
+     * @notice Checks if a v2.1 pair is valid
+     * @dev A pair is valid if the total reserves of the pair are above the minimum threshold
+     * and the reserves of the _BIN_WIDTH bin around the active bin are above the minimum threshold
+     * @param pair The pair to validate
+     * @param tokenXDecimals The decimals of the token X
+     * @param tokenYDecimals The decimals of the token Y
+     * @return isValid True if the pair is valid, false otherwise
+     */
     function _validateV2_1Pair(ILBPair pair, uint256 tokenXDecimals, uint256 tokenYDecimals)
         private
         view
@@ -876,6 +1017,15 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         return true;
     }
 
+    /**
+     * @notice Checks if a v2 pair is valid
+     * @dev A pair is valid if the total reserves of the pair are above the minimum threshold
+     * and the reserves of the _BIN_WIDTH bin around the active bin are above the minimum threshold
+     * @param pair The pair to validate
+     * @param tokenXDecimals The decimals of the token X
+     * @param tokenYDecimals The decimals of the token Y
+     * @return isValid True if the pair is valid, false otherwise
+     */
     function _validateV2Pair(ILBLegacyPair pair, uint256 tokenXDecimals, uint256 tokenYDecimals)
         private
         view
@@ -903,21 +1053,30 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         return true;
     }
 
+    /**
+     * @notice Checks if the pair reserves are above the minimum threshold
+     * @param reserveX The reserve of the token X
+     * @param reserveY The reserve of the token Y
+     * @param tokenXDecimals The decimals of the token X
+     * @param tokenYDecimals The decimals of the token Y
+     */
     function _validateReserves(uint256 reserveX, uint256 reserveY, uint256 tokenXDecimals, uint256 tokenYDecimals)
         private
         pure
         returns (bool isValid)
     {
-        // Need a least one unit of each token in the reserves
+        // Need at least one unit of each token in the reserves
         return reserveX > 10 ** tokenXDecimals && reserveY > 10 ** tokenYDecimals;
     }
 
-    /// @notice Return the price in collateral of a token from a V1 pair
-    /// @param collateral The address of the collateral (USDC or WNATIVE)
-    /// @param pairAddress The address of the V1 pair
-    /// @param tokenBase The address of the base token of the pair, i.e. the collateral one
-    /// @param token The address of the token
-    /// @return priceInCollateral The price of the token in collateral, with the collateral's decimals
+    /**
+     * @notice Return the price in collateral of a token from a V1 pair
+     * @param collateral The address of the collateral (USDC or WNATIVE)
+     * @param pairAddress The address of the V1 pair
+     * @param tokenBase The address of the base token of the pair, i.e. the collateral one
+     * @param token The address of the token
+     * @return priceInCollateral The price of the token in collateral, with the collateral's decimals
+     */
     function _getPriceInCollateralFromV1(address collateral, address pairAddress, address tokenBase, address token)
         private
         view
@@ -930,12 +1089,14 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         return (priceInBase * priceOfBase) / _PRECISION;
     }
 
-    /// @notice Return the entire TVL of a pair in token A, with `_DECIMALS` decimals
-    /// @dev tokenA and tokenB needs to be the two tokens paired in the given pair
-    /// @param pairAddress The address of the pair
-    /// @param tokenA The address of one of the pair's token
-    /// @param tokenB The address of the other pair's token
-    /// @return totalReserveInTokenA The total reserve of the pool in token A
+    /**
+     * @notice Return the entire TVL of a pair in token A, with `_DECIMALS` decimals
+     * @dev tokenA and tokenB needs to be the two tokens paired in the given pair
+     * @param pairAddress The address of the pair
+     * @param tokenA The address of one of the pair's token
+     * @param tokenB The address of the other pair's token
+     * @return totalReserveInTokenA The total reserve of the pool in token A
+     */
     function _getReserveInTokenAFromV1(address pairAddress, address tokenA, address tokenB)
         private
         view

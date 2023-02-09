@@ -15,7 +15,7 @@ contract TestJoeDexLens2 is TestHelper {
         joeDexLens = new JoeDexLens(lbRouter, USDC);
     }
 
-    function testPriceOnSameV1Pair() public {
+    function test_PriceOnSameV1Pair() public {
         IJoeDexLens.DataFeed memory df = IJoeDexLens.DataFeed(NativeUSDCv1, 1, IJoeDexLens.dfType.V1);
         joeDexLens.addUSDDataFeed(wNative, df);
         joeDexLens.addNativeDataFeed(USDC, df);
@@ -29,7 +29,7 @@ contract TestJoeDexLens2 is TestHelper {
         assertApproxEqRel(NativePrice * usdcPrice, 10 ** (decimalsUsdc + decimalsWNative), 1e12);
     }
 
-    function testPriceOnSameV2Pair10bp() public {
+    function test_PriceOnSameV2Pair10bp() public {
         IJoeDexLens.DataFeed memory df = IJoeDexLens.DataFeed(NativeUSDC10bps, 1, IJoeDexLens.dfType.V2);
         joeDexLens.addUSDDataFeed(wNative, df);
         joeDexLens.addNativeDataFeed(USDC, df);
@@ -43,7 +43,7 @@ contract TestJoeDexLens2 is TestHelper {
         assertApproxEqRel(NativePrice * usdcPrice, 10 ** (decimalsUsdc + decimalsWNative), 1e12);
     }
 
-    function testPriceOnSameV2Pair20bp() public {
+    function test_PriceOnSameV2Pair20bp() public {
         IJoeDexLens.DataFeed memory df = IJoeDexLens.DataFeed(NativeUSDC20bps, 1, IJoeDexLens.dfType.V2);
         joeDexLens.addUSDDataFeed(wNative, df);
         joeDexLens.addNativeDataFeed(USDC, df);
@@ -57,7 +57,7 @@ contract TestJoeDexLens2 is TestHelper {
         assertApproxEqRel(NativePrice * usdcPrice, 10 ** (decimalsUsdc + decimalsWNative), 1e12);
     }
 
-    function testUSDPrice() public {
+    function test_USDPrice() public {
         (address[] memory tokens, IJoeDexLens.DataFeed[] memory dataFeeds) = getTokenAndDataFeeds(USDC);
         joeDexLens.addUSDDataFeeds(tokens, dataFeeds);
 
@@ -88,7 +88,7 @@ contract TestJoeDexLens2 is TestHelper {
         assertGt(USDTPrice3, USDTPrice2);
     }
 
-    function testNativePrice() public {
+    function test_NativePrice() public {
         (address[] memory tokens, IJoeDexLens.DataFeed[] memory dataFeeds) = getTokenAndDataFeeds(USDC);
         joeDexLens.addUSDDataFeeds(tokens, dataFeeds);
 
@@ -122,7 +122,7 @@ contract TestJoeDexLens2 is TestHelper {
         assertLt(USDCPrice3, USDCPrice2);
     }
 
-    function testNativePriceFallbackOnUSDDatafeeds() external {
+    function test_NativePriceFallbackOnUSDDatafeeds() external {
         IJoeDexLens.DataFeed memory dfUSDTUSDC = IJoeDexLens.DataFeed(USDCUSDT1bps, 1, IJoeDexLens.dfType.V2);
         joeDexLens.addUSDDataFeed(USDT, dfUSDTUSDC);
 
@@ -137,7 +137,7 @@ contract TestJoeDexLens2 is TestHelper {
         assertEq(tokenPrice, usdtPriceUSD * 10 ** 18 / nativePriceUSD);
     }
 
-    function testUSDPriceFallbackOnNativeDatafeeds() external {
+    function test_USDPriceFallbackOnNativeDatafeeds() external {
         IPair USDTwNative = IFactory(factoryV1).getPair(wNative, USDT);
 
         IJoeDexLens.DataFeed memory dfUSDTNative = IJoeDexLens.DataFeed(address(USDTwNative), 1, IJoeDexLens.dfType.V1);

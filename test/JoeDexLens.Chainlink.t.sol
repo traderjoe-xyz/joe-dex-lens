@@ -19,14 +19,14 @@ contract TestChainlink is TestHelper {
         aggregator = new MockAggregator();
     }
 
-    function testChainlinkUSDPrice() public {
+    function test_ChainlinkUSDPrice() public {
         IJoeDexLens.DataFeed memory df = IJoeDexLens.DataFeed(address(aggregator), 1, IJoeDexLens.dfType.CHAINLINK);
         joeDexLens.addUSDDataFeed(token, df);
 
         assertEq(joeDexLens.getTokenPriceUSD(token), 1e6);
     }
 
-    function testChainlinkWNativePrice() public {
+    function test_ChainlinkWNativePrice() public {
         IJoeDexLens.DataFeed memory df = IJoeDexLens.DataFeed(address(aggregator), 1, IJoeDexLens.dfType.CHAINLINK);
         joeDexLens.addNativeDataFeed(token, df);
 

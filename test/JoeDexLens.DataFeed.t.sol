@@ -15,7 +15,7 @@ contract TestJoeDexLens is TestHelper {
         joeDexLens = new JoeDexLens(lbRouter, USDC);
     }
 
-    function testAddUSDDataFeeds() public {
+    function test_AddUSDDataFeeds() public {
         (address[] memory tokens, IJoeDexLens.DataFeed[] memory dataFeeds) = getTokenAndDataFeeds(USDC);
 
         joeDexLens.addUSDDataFeeds(tokens, dataFeeds);
@@ -46,7 +46,7 @@ contract TestJoeDexLens is TestHelper {
         assertEq(uint8(wNativeDataFeeds[0].dfType), uint8(IJoeDexLens.dfType.CHAINLINK));
     }
 
-    function testSetWeightUSDDataFeeds() public {
+    function test_SetWeightUSDDataFeeds() public {
         IJoeDexLens.DataFeed memory df = IJoeDexLens.DataFeed(address(1), 1, IJoeDexLens.dfType.CHAINLINK);
         joeDexLens.addUSDDataFeed(wNative, df);
 
@@ -68,7 +68,7 @@ contract TestJoeDexLens is TestHelper {
         assertEq(wNativeDataFeeds2[0].dfWeight, 20);
     }
 
-    function testSetWeightNativeDataFeeds() public {
+    function test_SetWeightNativeDataFeeds() public {
         IJoeDexLens.DataFeed memory df = IJoeDexLens.DataFeed(address(1), 1, IJoeDexLens.dfType.CHAINLINK);
         joeDexLens.addNativeDataFeed(USDC, df);
 
@@ -90,7 +90,7 @@ contract TestJoeDexLens is TestHelper {
         assertEq(USDCDataFeeds2[0].dfWeight, 10);
     }
 
-    function testAddDuplicateUSDDataFeedsReverts() public {
+    function test_AddDuplicateUSDDataFeedsReverts() public {
         (address[] memory tokens, IJoeDexLens.DataFeed[] memory dataFeeds) = getTokenAndDataFeeds(USDC);
 
         joeDexLens.addUSDDataFeeds(tokens, dataFeeds);
@@ -120,7 +120,7 @@ contract TestJoeDexLens is TestHelper {
         joeDexLens.addUSDDataFeed(tokens[0], dataFeeds[0]);
     }
 
-    function testRemoveUSDDataFeeds() public {
+    function test_RemoveUSDDataFeeds() public {
         (address[] memory tokens, IJoeDexLens.DataFeed[] memory dataFeeds) = getTokenAndDataFeeds(USDC);
 
         joeDexLens.addUSDDataFeeds(tokens, dataFeeds);
@@ -161,7 +161,7 @@ contract TestJoeDexLens is TestHelper {
         assertEq(USDTDataFeeds.length, 0);
     }
 
-    function testAddNativeDataFeeds() public {
+    function test_AddNativeDataFeeds() public {
         (address[] memory tokens, IJoeDexLens.DataFeed[] memory dataFeeds) = getTokenAndDataFeeds(wNative);
 
         joeDexLens.addNativeDataFeeds(tokens, dataFeeds);
@@ -192,7 +192,7 @@ contract TestJoeDexLens is TestHelper {
         assertEq(uint8(USDTDataFeeds[0].dfType), uint8(IJoeDexLens.dfType.CHAINLINK));
     }
 
-    function testAddDuplicateNativeDataFeedsReverts() public {
+    function test_AddDuplicateNativeDataFeedsReverts() public {
         (address[] memory tokens, IJoeDexLens.DataFeed[] memory dataFeeds) = getTokenAndDataFeeds(wNative);
 
         joeDexLens.addNativeDataFeeds(tokens, dataFeeds);
@@ -222,7 +222,7 @@ contract TestJoeDexLens is TestHelper {
         joeDexLens.addNativeDataFeed(tokens[0], dataFeeds[0]);
     }
 
-    function testRemoveNativeDataFeeds() public {
+    function test_RemoveNativeDataFeeds() public {
         (address[] memory tokens, IJoeDexLens.DataFeed[] memory dataFeeds) = getTokenAndDataFeeds(wNative);
 
         joeDexLens.addNativeDataFeeds(tokens, dataFeeds);

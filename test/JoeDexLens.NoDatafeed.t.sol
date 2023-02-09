@@ -43,8 +43,8 @@ contract TestJoeDexLens_ is TestHelper {
         uint256 tokenPriceNative = joeDexLens.getTokenPriceNative(address(token18D));
         uint256 nativePriceUSD = joeDexLens.getTokenPriceUSD(wNative);
 
-        assertApproxEqRel(priceUSD, 2e6, 3e16, "test_PriceWithoutDataFeeds_V1::1");
-        assertApproxEqRel(tokenPriceNative * nativePriceUSD / 1e30, priceUSD, 3e16, "test_PriceWithoutDataFeeds_V1::2");
+        assertApproxEqRel(priceUSD, 2e6, 3e16);
+        assertApproxEqRel(tokenPriceNative * nativePriceUSD / 1e30, priceUSD, 3e16);
 
         // Should still work after adding the second fallback pair
         IJoeRouter02(routerV1).addLiquidity(
@@ -56,8 +56,8 @@ contract TestJoeDexLens_ is TestHelper {
         tokenPriceNative = joeDexLens.getTokenPriceNative(address(token18D));
         nativePriceUSD = joeDexLens.getTokenPriceUSD(wNative);
 
-        assertApproxEqRel(priceUSD, 2e6, 3e16, "test_PriceWithoutDataFeeds_V1::1");
-        assertApproxEqRel(tokenPriceNative * nativePriceUSD / 1e30, priceUSD, 3e16, "test_PriceWithoutDataFeeds_V1::2");
+        assertApproxEqRel(priceUSD, 2e6, 3e16);
+        assertApproxEqRel(tokenPriceNative * nativePriceUSD / 1e30, priceUSD, 3e16);
     }
 
     function test_PriceWithoutDataFeeds_LegacyV2() public {

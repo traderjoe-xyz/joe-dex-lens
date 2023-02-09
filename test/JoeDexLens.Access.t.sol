@@ -15,7 +15,7 @@ contract TestJoeDexLens is TestHelper {
         joeDexLens = new JoeDexLens(lbRouter, USDC);
     }
 
-    function testRevertOnOwnerFunctions() public {
+    function test_RevertOnOwnerFunctions() public {
         vm.startPrank(ALICE);
 
         address[] memory usdcSingleton = getAddressSingleton(USDC);
@@ -151,11 +151,11 @@ contract TestJoeDexLens is TestHelper {
         vm.stopPrank();
     }
 
-    function testReturnRouter() public {
+    function test_ReturnRouter() public {
         assertEq(address(joeDexLens.getLegacyRouterV2()), address(LBLegacyRouter));
     }
 
-    function testReturnFactory() public {
+    function test_ReturnFactory() public {
         assertEq(address(joeDexLens.getFactoryV1()), address(factoryV1));
     }
 }

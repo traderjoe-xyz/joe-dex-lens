@@ -29,7 +29,7 @@ contract TestV2Prices is TestHelper {
         vm.stopPrank();
     }
 
-    function testPriceSameToken() public {
+    function test_PriceSameToken() public {
         uint256 priceUSDC = joeDexLens.getTokenPriceUSD(USDC);
         uint256 priceWNative = joeDexLens.getTokenPriceNative(wNative);
 
@@ -40,7 +40,7 @@ contract TestV2Prices is TestHelper {
         assertEq(10 ** decimalsWNative, priceWNative);
     }
 
-    function testV2PriceUSDC_USDT() public {
+    function test_V2PriceUSDC_USDT() public {
         ILBLegacyPair pair = ILBLegacyPair(USDCUSDT1bps);
 
         (,, uint256 id) = pair.getReservesAndId();
@@ -56,7 +56,7 @@ contract TestV2Prices is TestHelper {
         assertApproxEqAbs(priceLens, priceReal, 1);
     }
 
-    function testV2PriceNativeUSDC10bps() public {
+    function test_V2PriceNativeUSDC10bps() public {
         ILBLegacyPair pair = ILBLegacyPair(NativeUSDC10bps);
 
         (,, uint256 id) = pair.getReservesAndId();
@@ -72,7 +72,7 @@ contract TestV2Prices is TestHelper {
         assertApproxEqAbs(priceLens, priceReal, 1);
     }
 
-    function testV2PriceUSDC_10D() public {
+    function test_V2PriceUSDC_10D() public {
         createPairAndAddToUSDDataFeeds(USDC, address(token10D), ID_ONE + SHIFT_ID_ONE_1e4, IJoeDexLens.dfType.V2);
 
         uint256 priceT10D = joeDexLens.getTokenPriceUSD(address(token10D));
@@ -81,7 +81,7 @@ contract TestV2Prices is TestHelper {
         assertApproxEqRel(priceT10D, 1e6, uint256(DEFAULT_BIN_STEP) * 1e14);
     }
 
-    function testV2PriceUSDC_24D() public {
+    function test_V2PriceUSDC_24D() public {
         createPairAndAddToUSDDataFeeds(USDC, address(token24D), ID_ONE + SHIFT_ID_ONE_1e18, IJoeDexLens.dfType.V2);
 
         uint256 price = joeDexLens.getTokenPriceUSD(address(token24D));
@@ -89,7 +89,7 @@ contract TestV2Prices is TestHelper {
         assertApproxEqRel(price, 1e6, uint256(DEFAULT_BIN_STEP) * 1e14);
     }
 
-    function testV2Price10D_USDC() public {
+    function test_V2Price10D_USDC() public {
         createPairAndAddToUSDDataFeeds(address(token10D), USDC, ID_ONE - SHIFT_ID_ONE_1e4, IJoeDexLens.dfType.V2);
 
         uint256 price = joeDexLens.getTokenPriceUSD(address(token10D));
@@ -97,7 +97,7 @@ contract TestV2Prices is TestHelper {
         assertApproxEqRel(price, 1e6, uint256(DEFAULT_BIN_STEP) * 1e14);
     }
 
-    function testV2Price24D_USDC() public {
+    function test_V2Price24D_USDC() public {
         createPairAndAddToUSDDataFeeds(address(token24D), USDC, ID_ONE - SHIFT_ID_ONE_1e18, IJoeDexLens.dfType.V2);
 
         uint256 price = joeDexLens.getTokenPriceUSD(address(token24D));

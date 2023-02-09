@@ -2,13 +2,14 @@
 
 pragma solidity ^0.8.0;
 
-import "joe-v2/interfaces/ILBRouter.sol";
-import "joe-v2/interfaces/ILBLegacyRouter.sol";
-import "joe-v2/interfaces/ILBLegacyFactory.sol";
-import "joe-v2/interfaces/IJoeFactory.sol";
-import "solrary/access/ISafeAccessControlEnumerable.sol";
+import {IJoeFactory} from "joe-v2/interfaces/IJoeFactory.sol";
+import {ILBFactory} from "joe-v2/interfaces/ILBFactory.sol";
+import {ILBLegacyFactory} from "joe-v2/interfaces/ILBLegacyFactory.sol";
+import {ILBLegacyRouter} from "joe-v2/interfaces/ILBLegacyRouter.sol";
+import {ILBRouter} from "joe-v2/interfaces/ILBRouter.sol";
+import {ISafeAccessControlEnumerable} from "solrary/access/ISafeAccessControlEnumerable.sol";
 
-import "../interfaces/AggregatorV3Interface.sol";
+import {AggregatorV3Interface} from "../interfaces/AggregatorV3Interface.sol";
 
 /// @title Interface of the Joe Dex Lens contract
 /// @author Trader Joe
