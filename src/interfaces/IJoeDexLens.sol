@@ -2,7 +2,9 @@
 
 pragma solidity ^0.8.0;
 
+import "joe-v2/interfaces/ILBRouter.sol";
 import "joe-v2/interfaces/ILBLegacyRouter.sol";
+import "joe-v2/interfaces/ILBLegacyFactory.sol";
 import "joe-v2/interfaces/IJoeFactory.sol";
 import "solrary/access/ISafeAccessControlEnumerable.sol";
 
@@ -62,7 +64,13 @@ interface IJoeDexLens is ISafeAccessControlEnumerable {
 
     function getLegacyRouterV2() external view returns (ILBLegacyRouter legacyRouterV2);
 
+    function getRouterV2() external view returns (ILBRouter routerV2);
+
     function getFactoryV1() external view returns (IJoeFactory factoryV1);
+
+    function getLegacyFactoryV2() external view returns (ILBLegacyFactory legacyFactoryV2);
+
+    function getFactoryV2() external view returns (ILBFactory factoryV2);
 
     function getUSDDataFeeds(address token) external view returns (DataFeed[] memory dataFeeds);
 

@@ -123,10 +123,22 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         return _LEGACY_ROUTER_V2;
     }
 
+    function getRouterV2() external view override returns (ILBRouter routerV2) {
+        return _ROUTER_V2_1;
+    }
+
     /// @notice Returns the address of the factory V1
     /// @return factoryV1 The address of the factory V1
     function getFactoryV1() external view override returns (IJoeFactory factoryV1) {
         return _FACTORY_V1;
+    }
+
+    function getLegacyFactoryV2() external view override returns (ILBLegacyFactory legacyFactoryV2) {
+        return _LEGACY_FACTORY_V2;
+    }
+
+    function getFactoryV2() external view override returns (ILBFactory factoryV2) {
+        return _FACTORY_V2_1;
     }
 
     /// @notice Returns the list of data feeds used to calculate the price of the token in stable coin
