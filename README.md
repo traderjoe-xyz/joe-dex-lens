@@ -22,7 +22,7 @@ To set the weight of a data feed, use the following four functions:
 - `setNativeDataFeedWeight`
 - `setNativeDataFeedsWeights`
 
-If no markets for a given token was added, Token-Native and Token-USDC from Joe V1 will be used to return the token's price. The weight will be calculated using the liquidity of the different pairs.
+If no markets for a given token were added, Token-Native and Token-USDC from Joe V2.1, V2 and then V1 will be considered to return the token's price. V2.1 and V2 pairs will be skipped if they don't have enough reserves around the current active bin.
 
 ## Install foundry
 
