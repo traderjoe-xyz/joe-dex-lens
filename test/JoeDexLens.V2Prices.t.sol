@@ -21,7 +21,7 @@ contract TestV2Prices is TestHelper {
         token10D = new ERC20MockDecimals(10);
         token24D = new ERC20MockDecimals(24);
 
-        joeDexLens = new JoeDexLens(lbRouter, USDC);
+        joeDexLens = new JoeDexLens(lbRouter, lbFactory, LBLegacyRouter, LBLegacyFactory, joeFactory, wNative, USDC);
 
         vm.startPrank(factoryOwner);
         LBLegacyFactory.addQuoteAsset(token10D);

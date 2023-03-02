@@ -12,7 +12,7 @@ contract TestJoeDexLens is TestHelper {
         vm.createSelectFork(vm.rpcUrl("fuji"), 14_541_000);
         super.setUp();
 
-        joeDexLens = new JoeDexLens(lbRouter, USDC);
+        joeDexLens = new JoeDexLens(lbRouter, lbFactory, LBLegacyRouter, LBLegacyFactory, joeFactory, wNative, USDC);
     }
 
     function test_AddUSDDataFeeds() public {

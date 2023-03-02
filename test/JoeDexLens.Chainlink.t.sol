@@ -15,7 +15,7 @@ contract TestChainlink is TestHelper {
 
         token = address(new ERC20MockDecimals(18));
 
-        joeDexLens = new JoeDexLens(lbRouter, USDC);
+        joeDexLens = new JoeDexLens(lbRouter, lbFactory, LBLegacyRouter, LBLegacyFactory, joeFactory, wNative, USDC);
         aggregator = new MockAggregator();
     }
 
