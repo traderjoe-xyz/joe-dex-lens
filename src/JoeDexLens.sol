@@ -82,7 +82,17 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     modifier verifyDataFeed(address collateral, address token, DataFeed calldata dataFeed) {
         if (collateral == token) revert JoeDexLens__SameTokens();
 
-        if (dataFeed.dfType != dfType.CHAINLINK) {
+        if (dataFeed.dfType == dfType.V1) {
+            if (address(_FACTORY_V1) == address(0)) revert JoeDexLens__V1ContractNotSet();
+        } else if (dataFeed.dfType == dfType.V2) {
+            if (address(_LEGACY_FACTORY_V2) == address(0) || address(_LEGACY_ROUTER_V2) == address(0)) {
+                revert JoeDexLens__V2ContractNotSet();
+            }
+        } else if (dataFeed.dfType == dfType.V2_1) {
+            if (address(_FACTORY_V2_1) == address(0) || address(_ROUTER_V2_1) == address(0)) {
+                revert JoeDexLens__V2_1ContractNotSet();
+            }
+        } else if (dataFeed.dfType != dfType.CHAINLINK) {
             (address tokenA, address tokenB) = _getTokens(dataFeed);
 
             if (tokenA != collateral && tokenB != collateral) {
@@ -894,6 +904,10 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      * @return price The price of the token, with the collateral's decimals (0 if no valid pair was found)
      */
     function _v2_1FallbackPrice(address collateral, address token) private view returns (uint256 price) {
+        if (address(_FACTORY_V2_1) == address(0) || address(_ROUTER_V2_1) == address(0)) {
+            return 0;
+        }
+
         ILBFactory.LBPairInformation[] memory lbPairsAvailable =
             _FACTORY_V2_1.getAllLBPairs(IERC20(collateral), IERC20(token));
 
@@ -919,6 +933,10 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      * @return price The price of the token, with the collateral's decimals (0 if no valid pair was found)
      */
     function _v2FallbackPrice(address collateral, address token) private view returns (uint256 price) {
+        if (address(_LEGACY_FACTORY_V2) == address(0) || address(_LEGACY_ROUTER_V2) == address(0)) {
+            return 0;
+        }
+
         ILBLegacyFactory.LBPairInformation[] memory lbPairsAvailable =
             _LEGACY_FACTORY_V2.getAllLBPairs(IERC20(collateral), IERC20(token));
 
@@ -944,6 +962,8 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      * @return price The price of the token, with the collateral's decimals
      */
     function _v1FallbackPrice(address collateral, address token) private view returns (uint256 price) {
+        if (address(_FACTORY_V1) == address(0)) return 0;
+
         address pairTokenWNative = _FACTORY_V1.getPair(token, _WNATIVE);
         address pairTokenUsdc = _FACTORY_V1.getPair(token, _USD_STABLE_COIN);
 

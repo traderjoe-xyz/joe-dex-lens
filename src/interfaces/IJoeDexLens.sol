@@ -27,6 +27,9 @@ interface IJoeDexLens is ISafeAccessControlEnumerable {
     error JoeDexLens__WrongPair();
     error JoeDexLens__InvalidChainLinkPrice();
     error JoeDexLens__NotEnoughLiquidity();
+    error JoeDexLens__V1ContractNotSet();
+    error JoeDexLens__V2ContractNotSet();
+    error JoeDexLens__V2_1ContractNotSet();
 
     /// @notice Enumerators of the different data feed types
     enum dfType {
