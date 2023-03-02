@@ -30,6 +30,11 @@ interface IJoeDexLens is ISafeAccessControlEnumerable {
     error JoeDexLens__V1ContractNotSet();
     error JoeDexLens__V2ContractNotSet();
     error JoeDexLens__V2_1ContractNotSet();
+    error JoeDexLens__LBV2_1AddressMismatch();
+    error JoeDexLens__LBV2AddressMismatch();
+    error JoeDexLens__JoeV1AddressMismatch();
+    error JoeDexLens__WNativeMismatch();
+    error JoeDexLens__ZeroAddress();
 
     /// @notice Enumerators of the different data feed types
     enum dfType {

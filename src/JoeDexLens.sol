@@ -117,13 +117,62 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      * Constructor *
      */
 
-    constructor(ILBRouter lbRouter, address usdStableCoin) {
+    constructor(
+        ILBRouter lbRouter,
+        ILBFactory lbFactory,
+        ILBLegacyRouter lbLegacyRouter,
+        ILBLegacyFactory lbLegacyFactory,
+        IJoeFactory joeFactory,
+        address wnative,
+        address usdStableCoin
+    ) {
+        // revert if all addresses are zero
+        if (
+            address(lbRouter) == address(0) && address(lbFactory) == address(0) && address(lbLegacyRouter) == address(0)
+                && address(lbLegacyFactory) == address(0) && address(joeFactory) == address(0)
+        ) {
+            revert JoeDexLens__ZeroAddress();
+        }
+
+        if (address(lbRouter) != address(0)) {
+            if (lbRouter.getFactory() != lbFactory) revert JoeDexLens__LBV2_1AddressMismatch();
+            if (
+                address(lbLegacyRouter) != address(0) && address(lbLegacyFactory) != address(0)
+                    && (lbRouter.getLegacyRouter() != lbLegacyRouter || lbRouter.getLegacyFactory() != lbLegacyFactory)
+            ) {
+                revert JoeDexLens__LBV2AddressMismatch();
+            }
+            if (address(joeFactory) != address(0) && lbRouter.getV1Factory() != joeFactory) {
+                revert JoeDexLens__JoeV1AddressMismatch();
+            }
+            if (address(lbRouter.getWAVAX()) != wnative) revert JoeDexLens__WNativeMismatch();
+        } else if (address(lbFactory) != address(0)) {
+            // Make sure that if lbRouter is not set, lbFactory is not set either
+            revert JoeDexLens__LBV2_1AddressMismatch();
+        }
+
+        if (address(lbLegacyRouter) != address(0)) {
+            // Sanity check that the getIdFromPrice function exists
+            try lbLegacyRouter.getIdFromPrice(ILBLegacyPair(address(0)), 0) {} catch {}
+            lbLegacyFactory.getNumberOfLBPairs(); // Sanity check
+        } else if (address(lbLegacyFactory) != address(0)) {
+            // Make sure that if lbLegacyRouter is not set, lbLegacyFactory is not set either
+            revert JoeDexLens__LBV2AddressMismatch();
+        }
+
+        if (address(joeFactory) != address(0)) joeFactory.allPairsLength(); // Sanity check
+
+        if (wnative == address(0) || usdStableCoin == address(0)) revert JoeDexLens__ZeroAddress();
+
         _ROUTER_V2_1 = lbRouter;
-        _LEGACY_ROUTER_V2 = lbRouter.getLegacyRouter();
-        _FACTORY_V1 = lbRouter.getV1Factory();
-        _LEGACY_FACTORY_V2 = lbRouter.getLegacyFactory();
-        _FACTORY_V2_1 = lbRouter.getFactory();
-        _WNATIVE = address(lbRouter.getWAVAX());
+        _FACTORY_V2_1 = lbFactory;
+
+        _LEGACY_ROUTER_V2 = lbLegacyRouter;
+        _LEGACY_FACTORY_V2 = lbLegacyFactory;
+
+        _FACTORY_V1 = joeFactory;
+
+        _WNATIVE = wnative;
         _USD_STABLE_COIN = usdStableCoin;
     }
 
