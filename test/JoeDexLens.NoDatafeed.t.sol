@@ -20,8 +20,7 @@ contract TestJoeDexLens_ is TestHelper {
     }
 
     function test_PriceWithoutDataFeeds_V1() public {
-        vm.expectRevert(IJoeDexLens.JoeDexLens__PairsNotCreated.selector);
-        joeDexLens.getTokenPriceUSD(address(1));
+        assertEq(joeDexLens.getTokenPriceUSD(address(1)), 0);
 
         // 1 token18 = 2 USDC
         uint256 amountToken18D = 1e18;
@@ -64,9 +63,9 @@ contract TestJoeDexLens_ is TestHelper {
         // 1 token18 = 2 USDC
         LBLegacyRouter.createLBPair(token18D, IERC20(USDC), 8361297, DEFAULT_BIN_STEP);
 
-        // Fails if there is no liquidity
-        vm.expectRevert(IJoeDexLens.JoeDexLens__PairsNotCreated.selector);
+        // Should return 0 if there is no liquidity
         uint256 tokenPrice = joeDexLens.getTokenPriceUSD(address(token18D));
+        assertEq(tokenPrice, 0);
 
         // Add liquidity but not enough to meet the lens requirements for a valid price
         ILBRouter.LiquidityParameters memory liquidityParameters =
@@ -79,8 +78,8 @@ contract TestJoeDexLens_ is TestHelper {
 
         LBLegacyRouter.addLiquidity(Utils.toLegacy(liquidityParameters));
 
-        vm.expectRevert(IJoeDexLens.JoeDexLens__PairsNotCreated.selector);
         tokenPrice = joeDexLens.getTokenPriceUSD(address(token18D));
+        assertEq(tokenPrice, 0);
 
         // Add enough liquidity this time
         liquidityParameters = getLiquidityParameters(token18D, IERC20(USDC), 10e6, 8361297, 3, 0);
@@ -109,9 +108,9 @@ contract TestJoeDexLens_ is TestHelper {
         // 1 token18 = 2 USDC
         lbRouter.createLBPair(token18D, IERC20(USDC), 8361297, DEFAULT_BIN_STEP * 2);
 
-        // Fails if there is no liquidity
-        vm.expectRevert(IJoeDexLens.JoeDexLens__PairsNotCreated.selector);
+        // Should return 0 if there is no liquidity
         uint256 tokenPrice = joeDexLens.getTokenPriceUSD(address(token18D));
+        assertEq(tokenPrice, 0);
 
         // Add liquidity but not enough to meet the lens requirements for a valid price
         ILBRouter.LiquidityParameters memory liquidityParameters =
@@ -124,8 +123,8 @@ contract TestJoeDexLens_ is TestHelper {
 
         lbRouter.addLiquidity(liquidityParameters);
 
-        vm.expectRevert(IJoeDexLens.JoeDexLens__PairsNotCreated.selector);
         tokenPrice = joeDexLens.getTokenPriceUSD(address(token18D));
+        assertEq(tokenPrice, 0);
 
         // Add enough liquidity this time
         liquidityParameters = getLiquidityParameters(token18D, IERC20(USDC), 10e6, 8361297, 3, 0);

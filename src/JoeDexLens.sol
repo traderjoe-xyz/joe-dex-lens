@@ -800,9 +800,9 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
         // Return the price with `_DECIMALS` decimals
         if (token == token0) {
-            return (reserve1 * 10 ** (decimals0 + _DECIMALS)) / (reserve0 * 10 ** decimals1);
+            return reserve0 == 0 ? 0 : (reserve1 * 10 ** (decimals0 + _DECIMALS)) / (reserve0 * 10 ** decimals1);
         } else if (token == token1) {
-            return (reserve0 * 10 ** (decimals1 + _DECIMALS)) / (reserve1 * 10 ** decimals0);
+            return reserve1 == 0 ? 0 : (reserve0 * 10 ** (decimals1 + _DECIMALS)) / (reserve1 * 10 ** decimals0);
         } else {
             revert JoeDexLens__WrongPair();
         }
@@ -935,8 +935,10 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
                 uint256 collateralDecimals = IERC20Metadata(collateral).decimals();
                 uint256 otherCollateralDecimals = IERC20Metadata(otherCollateral).decimals();
 
-                price = priceTokenOtherCollateral * 10 ** (_DECIMALS + collateralDecimals - otherCollateralDecimals)
-                    / collateralPrice;
+                price = collateralPrice == 0
+                    ? 0
+                    : priceTokenOtherCollateral * 10 ** (_DECIMALS + collateralDecimals - otherCollateralDecimals)
+                        / collateralPrice;
             }
         }
 
@@ -1036,15 +1038,11 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
             uint256 weightedPriceNative = (priceInNative * priceOfNative * weightWNative) / _PRECISION;
             if (weightedPriceNative != 0) totalWeights += weightWNative;
 
-            if (totalWeights == 0) revert JoeDexLens__NotEnoughLiquidity();
-
-            return (weightedPriceUSDC + weightedPriceNative) / totalWeights;
+            return totalWeights == 0 ? 0 : (weightedPriceUSDC + weightedPriceNative) / totalWeights;
         } else if (pairTokenWNative != address(0)) {
             return _getPriceInCollateralFromV1(collateral, pairTokenWNative, _WNATIVE, token);
         } else if (pairTokenUsdc != address(0)) {
             return _getPriceInCollateralFromV1(collateral, pairTokenUsdc, _USD_STABLE_COIN, token);
-        } else {
-            revert JoeDexLens__PairsNotCreated();
         }
     }
 

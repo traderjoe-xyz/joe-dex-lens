@@ -15,7 +15,6 @@ import {AggregatorV3Interface} from "../interfaces/AggregatorV3Interface.sol";
 /// @author Trader Joe
 /// @notice The interface needed to interract with the Joe Dex Lens contract
 interface IJoeDexLens is ISafeAccessControlEnumerable {
-    error JoeDexLens__PairsNotCreated();
     error JoeDexLens__UnknownDataFeedType();
     error JoeDexLens__CollateralNotInPair(address pair, address collateral);
     error JoeDexLens__TokenNotInPair(address pair, address token);
