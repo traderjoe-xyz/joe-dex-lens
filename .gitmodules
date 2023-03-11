@@ -11,4 +11,4 @@
 [submodule "lib/joe-v2"]
 	path = lib/joe-v2
 	url = https://github.com/traderjoe-xyz/joe-v2
-	branch = 7c794105ad6790efa31b5b35523dbb8248fbaacd
+	branch = v2.1
