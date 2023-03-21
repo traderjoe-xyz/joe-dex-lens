@@ -22,18 +22,12 @@ interface IJoeDexLens is ISafeAccessControlEnumerable {
     error JoeDexLens__DataFeedNotInSet(address token, address dataFeed);
     error JoeDexLens__LengthsMismatch();
     error JoeDexLens__NullWeight();
-    error JoeDexLens__WrongPair();
     error JoeDexLens__InvalidChainLinkPrice();
-    error JoeDexLens__NotEnoughLiquidity();
     error JoeDexLens__V1ContractNotSet();
     error JoeDexLens__V2ContractNotSet();
     error JoeDexLens__V2_1ContractNotSet();
     error JoeDexLens__AlreadyInitialized();
-    error JoeDexLens__LBV2_1AddressMismatch();
-    error JoeDexLens__LBV2AddressMismatch();
-    error JoeDexLens__JoeV1AddressMismatch();
-    error JoeDexLens__WNativeMismatch();
-    error JoeDexLens__InvalidPrice();
+    error JoeDexLens__InvalidDataFeed();
     error JoeDexLens__ZeroAddress();
     error JoeDexLens__SameDataFeed();
 
@@ -80,8 +74,6 @@ interface IJoeDexLens is ISafeAccessControlEnumerable {
     function getFactoryV2_1() external view returns (ILBFactory factoryV2);
 
     function getDataFeeds(address token) external view returns (DataFeed[] memory dataFeeds);
-
-    function getNativePrice() external view returns (uint256 price);
 
     function getTokenPriceUSD(address token) external view returns (uint256 price);
 

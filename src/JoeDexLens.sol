@@ -35,6 +35,9 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
     bytes32 public constant DATA_FEED_MANAGER_ROLE = keccak256("DATA_FEED_MANAGER_ROLE");
 
+    uint256 private constant _BIN_WIDTH = 5;
+    uint256 private constant _TWO_BASIS_POINT = 20_000;
+
     ILBFactory private immutable _FACTORY_V2_1;
     ILBLegacyFactory private immutable _LEGACY_FACTORY_V2;
     IJoeFactory private immutable _FACTORY_V1;
@@ -42,9 +45,6 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     address private immutable _WNATIVE;
     uint256 private immutable _WNATIVE_DECIMALS;
     uint256 private immutable _WNATIVE_PRECISION;
-
-    uint256 private constant _BIN_WIDTH = 5;
-    uint256 private constant _BASIS_POINT = 10_000;
 
     /**
      * @dev Mapping from a token to an enumerable set of data feeds used to get the price of the token
@@ -81,7 +81,15 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
         DataFeedType dfType = dataFeed.dfType;
 
-        if (dataFeed.dfType != DataFeedType.CHAINLINK) {
+        if (dfType != DataFeedType.CHAINLINK) {
+            if (dfType == DataFeedType.V2_1 && address(_FACTORY_V2_1) == address(0)) {
+                revert JoeDexLens__V2_1ContractNotSet();
+            } else if (dfType == DataFeedType.V2 && address(_LEGACY_FACTORY_V2) == address(0)) {
+                revert JoeDexLens__V2ContractNotSet();
+            } else if (dfType == DataFeedType.V1 && address(_FACTORY_V1) == address(0)) {
+                revert JoeDexLens__V1ContractNotSet();
+            }
+
             (address tokenA, address tokenB) = _getPairedTokens(dataFeed.dfAddress, dfType);
 
             if (tokenA != collateralAddress && tokenB != collateralAddress) {
@@ -104,19 +112,23 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     }
 
     /**
-     * Constructor *
+     * @notice Constructor of the contract
+     * @dev Revert if :
+     * - All addresses are zero
+     * - wnative is zero
+     * @param lbFactory The address of the v2.1 factory
+     * @param lbLegacyFactory The address of the v2 factory
+     * @param joeFactory The address of the v1 factory
+     * @param wnative The address of the wnative token
      */
-
     constructor(ILBFactory lbFactory, ILBLegacyFactory lbLegacyFactory, IJoeFactory joeFactory, address wnative) {
-        // revert if all addresses are zero
+        // revert if all addresses are zero or if wnative is zero
         if (
             address(lbFactory) == address(0) && address(lbLegacyFactory) == address(0)
-                && address(joeFactory) == address(0)
+                && address(joeFactory) == address(0) || wnative == address(0)
         ) {
             revert JoeDexLens__ZeroAddress();
         }
-
-        if (wnative == address(0)) revert JoeDexLens__ZeroAddress();
 
         _FACTORY_V1 = joeFactory;
         _LEGACY_FACTORY_V2 = lbLegacyFactory;
@@ -126,13 +138,20 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
         _WNATIVE_DECIMALS = IERC20Metadata(wnative).decimals();
         _WNATIVE_PRECISION = 10 ** _WNATIVE_DECIMALS;
-
-        _whitelistedDataFeeds[_WNATIVE].dataFeeds.push();
     }
 
     /**
-     * External View Functions *
+     * @notice Initialize the contract
+     * @dev Transfer the ownership to the sender and set the native data feed
+     * @param aggregator The address of the aggregator
      */
+    function initialize(address aggregator) external {
+        if (_getDataFeedsLength(_WNATIVE) != 0) revert JoeDexLens__AlreadyInitialized();
+        _whitelistedDataFeeds[_WNATIVE].dataFeeds.push();
+
+        _transferOwnership(msg.sender);
+        _setNativeDataFeed(aggregator);
+    }
 
     /**
      * @notice Returns the address of the wrapped native token
@@ -140,14 +159,6 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      */
     function getWNative() external view override returns (address wNative) {
         return _WNATIVE;
-    }
-
-    /**
-     * @notice Returns the price of the wrapped native token
-     * @return price The price of the wrapped native token
-     */
-    function getNativePrice() external view override returns (uint256 price) {
-        return _getNativePrice();
     }
 
     /**
@@ -234,14 +245,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      * @param aggregator The address of the chainlink aggregator
      */
     function setNativeDataFeed(address aggregator) external override onlyOwnerOrRole(DATA_FEED_MANAGER_ROLE) {
-        if (_getDataFeedAt(_WNATIVE, 0).dfAddress == aggregator) revert JoeDexLens__SameDataFeed();
-
-        DataFeed memory dataFeed = DataFeed(_WNATIVE, aggregator, 1, DataFeedType.CHAINLINK);
-        _whitelistedDataFeeds[_WNATIVE].dataFeeds[0] = dataFeed;
-
-        if (_getPriceFromChainlink(aggregator) == 0) revert JoeDexLens__InvalidPrice();
-
-        emit NativeDataFeedSet(aggregator);
+        _setNativeDataFeed(aggregator);
     }
 
     /**
@@ -258,8 +262,6 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         if (token == _WNATIVE) revert JoeDexLens__NativeToken();
 
         _addDataFeed(token, dataFeed);
-
-        if (_getTokenWeightedAverageNativePrice(token) == 0) revert JoeDexLens__InvalidPrice();
     }
 
     /**
@@ -431,6 +433,9 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
             revert JoeDexLens__DataFeedAlreadyAdded(token, dataFeed.dfAddress);
         }
 
+        (uint256 price,) = _getDataFeedPrice(dataFeed, token);
+        if (price == 0) revert JoeDexLens__InvalidDataFeed();
+
         emit DataFeedAdded(token, dataFeed);
     }
 
@@ -491,6 +496,8 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
     /**
      * @notice Remove a data feed from a set, revert if it couldn't remove it
+     * @dev Revert if the token's price is 0 after removing the data feed to prevent the other tokens
+     * that use this token as a data feed to have a price of 0
      * @param token The address of the token
      * @param dfAddress The data feed address
      */
@@ -498,6 +505,8 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         if (!_removeFromSet(token, dfAddress)) {
             revert JoeDexLens__DataFeedNotInSet(token, dfAddress);
         }
+
+        if (_getTokenWeightedAverageNativePrice(token) == 0) revert JoeDexLens__InvalidDataFeed();
 
         emit DataFeedRemoved(token, dfAddress);
     }
@@ -521,6 +530,21 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     }
 
     /**
+     * @notice Set the native token's data feed
+     * @param aggregator The address of the chainlink aggregator
+     */
+    function _setNativeDataFeed(address aggregator) private {
+        if (_getDataFeedAt(_WNATIVE, 0).dfAddress == aggregator) revert JoeDexLens__SameDataFeed();
+
+        DataFeed memory dataFeed = DataFeed(_WNATIVE, aggregator, 1, DataFeedType.CHAINLINK);
+        _whitelistedDataFeeds[_WNATIVE].dataFeeds[0] = dataFeed;
+
+        if (_getPriceFromChainlink(aggregator) == 0) revert JoeDexLens__InvalidChainLinkPrice();
+
+        emit NativeDataFeedSet(aggregator);
+    }
+
+    /**
      * @notice Return the price of the native token
      * @dev The native token had to have a chainlink data feed set
      * @return price The price of the native token, with the native token's decimals
@@ -541,32 +565,17 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         uint256 length = _getDataFeedsLength(token);
         if (length == 0) return _getNativePriceAnyToken(token);
 
-        uint256 dfPrice;
         uint256 totalWeights;
+
         for (uint256 i; i < length;) {
             DataFeed memory dataFeed = _getDataFeedAt(token, i);
 
-            DataFeedType dfType = dataFeed.dfType;
-
-            if (dfType == DataFeedType.V1) {
-                (,, dfPrice,) = _getPriceFromV1(dataFeed.dfAddress, token);
-            } else if (dfType == DataFeedType.V2 || dfType == DataFeedType.V2_1) {
-                (,, dfPrice,) = _getPriceFromLb(dataFeed.dfAddress, dfType, token);
-            } else if (dfType == DataFeedType.CHAINLINK) {
-                dfPrice = _getPriceFromChainlink(dataFeed.dfAddress);
-            } else {
-                revert JoeDexLens__UnknownDataFeedType();
-            }
+            (uint256 dfPrice, uint256 dfWeight) = _getDataFeedPrice(dataFeed, token);
 
             if (dfPrice != 0) {
-                if (dataFeed.collateralAddress != _WNATIVE) {
-                    uint256 collateralPrice = _getTokenWeightedAverageNativePrice(dataFeed.collateralAddress);
-                    dfPrice = dfPrice * collateralPrice / _WNATIVE_PRECISION;
-                }
-
-                price += dfPrice * dataFeed.dfWeight;
+                price += dfPrice * dfWeight;
                 unchecked {
-                    totalWeights += dataFeed.dfWeight;
+                    totalWeights += dfWeight;
                 }
             }
 
@@ -576,6 +585,36 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         }
 
         price = totalWeights == 0 ? 0 : price / totalWeights;
+    }
+
+    /**
+     * @notice Return the price of a token using a specific datafeed, with wnative's decimals
+     */
+    function _getDataFeedPrice(DataFeed memory dataFeed, address token)
+        private
+        view
+        returns (uint256 dfPrice, uint256 dfWeight)
+    {
+        DataFeedType dfType = dataFeed.dfType;
+
+        if (dfType == DataFeedType.V1) {
+            (,, dfPrice,) = _getPriceFromV1(dataFeed.dfAddress, token);
+        } else if (dfType == DataFeedType.V2 || dfType == DataFeedType.V2_1) {
+            (,, dfPrice,) = _getPriceFromLb(dataFeed.dfAddress, dfType, token);
+        } else if (dfType == DataFeedType.CHAINLINK) {
+            dfPrice = _getPriceFromChainlink(dataFeed.dfAddress);
+        } else {
+            revert JoeDexLens__UnknownDataFeedType();
+        }
+
+        if (dfPrice != 0) {
+            if (dataFeed.collateralAddress != _WNATIVE) {
+                uint256 collateralPrice = _getTokenWeightedAverageNativePrice(dataFeed.collateralAddress);
+                dfPrice = dfPrice * collateralPrice / _WNATIVE_PRECISION;
+            }
+
+            dfWeight = dataFeed.dfWeight;
+        }
     }
 
     /**
@@ -731,19 +770,11 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         returns (uint24 activeId, uint16 binStep)
     {
         if (dfType == DataFeedType.V2) {
-            if (address(_LEGACY_FACTORY_V2) == address(0)) {
-                revert JoeDexLens__V2ContractNotSet();
-            }
-
             (,, uint256 aId) = ILBLegacyPair(pair).getReservesAndId();
             activeId = uint24(aId);
 
             binStep = uint16(ILBLegacyPair(pair).feeParameters().binStep);
         } else if (dfType == DataFeedType.V2_1) {
-            if (address(_FACTORY_V2_1) == address(0)) {
-                revert JoeDexLens__V2_1ContractNotSet();
-            }
-
             activeId = ILBPair(pair).getActiveId();
             binStep = ILBPair(pair).getBinStep();
         } else {
@@ -846,14 +877,16 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         if (pair != address(0)) {
             (uint256 reserve0, uint256 reserve1, uint256 price, bool isTokenX) = _getPriceFromV1(pair, token);
 
-            weightedPrice = price * (isTokenX ? reserve1 : reserve0) * _BIN_WIDTH;
-            totalWeight = _BIN_WIDTH;
+            totalWeight = (isTokenX ? reserve1 : reserve0) * _BIN_WIDTH;
+            weightedPrice = price * totalWeight;
         }
     }
 
     /**
      * @notice Get the scaled reserves of the bins that are close to the active bin, based on the bin step
      * and the other token's reserves.
+     * @dev Multiply the reserves by `20_000 / binStep` to get the scaled reserves and compare them to the
+     * reserves of the V1 pair. This is an approximation of the price impact of the different versions.
      * @param lbPair The address of the liquidity book pair
      * @param activeId The active bin id
      * @param binStep The bin step
@@ -868,16 +901,24 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         if (isTokenX) {
             (uint256 start, uint256 end) = (activeId - _BIN_WIDTH + 1, activeId + 1);
 
-            for (uint256 i = start; i < end; i += binStep) {
+            for (uint256 i = start; i < end;) {
                 (, uint256 y) = ILBPair(lbPair).getBin(uint24(i));
-                scaledReserves += y * _BASIS_POINT / binStep;
+                scaledReserves += y * _TWO_BASIS_POINT / binStep;
+
+                unchecked {
+                    ++i;
+                }
             }
         } else {
             (uint256 start, uint256 end) = (activeId, activeId + _BIN_WIDTH);
 
-            for (uint256 i = start; i < end; i += binStep) {
+            for (uint256 i = start; i < end;) {
                 (uint256 x,) = ILBPair(lbPair).getBin(uint24(i));
-                scaledReserves += x * _BASIS_POINT / binStep;
+                scaledReserves += x * _TWO_BASIS_POINT / binStep;
+
+                unchecked {
+                    ++i;
+                }
             }
         }
     }
