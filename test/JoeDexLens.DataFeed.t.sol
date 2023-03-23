@@ -86,8 +86,6 @@ contract TestJoeDexLens is TestHelper {
         address newToken = address(new ERC20MockDecimals(18));
         address pair = address(LBLegacyRouter.createLBPair(IERC20(newToken), IERC20(USDC), ID_ONE, DEFAULT_BIN_STEP));
 
-        console.log("----------");
-
         vm.expectRevert(IJoeDexLens.JoeDexLens__InvalidDataFeed.selector);
         joeDexLens.addDataFeed(USDC, IJoeDexLens.DataFeed(address(newToken), pair, 1000, IJoeDexLens.DataFeedType.V2));
     }

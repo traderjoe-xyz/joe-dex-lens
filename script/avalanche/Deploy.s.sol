@@ -38,7 +38,6 @@ contract Deploy is Script {
             address(implementation),
             address(proxyAdmin),
             abi.encodeWithSignature("initialize(address)", native_usd_aggregator)
-            
         );
 
         vm.stopBroadcast();

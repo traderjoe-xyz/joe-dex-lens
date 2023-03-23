@@ -26,7 +26,7 @@ import {IJoeDexLens} from "./interfaces/IJoeDexLens.sol";
  * @notice This contract allows to price tokens in either Native or USD.
  * It uses a set of data feeds to get the price of a token. The data feeds can be added or removed by the owner and
  * the data feed manager. They can also set the weight of each data feed.
- * When no data feed is provided, the contract will ietrate over TOKEN/WNative
+ * When no data feed is provided, the contract will iterate over TOKEN/WNative
  * pools on v2.1, v2 and v1 to find a weighted average price.
  */
 contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
@@ -641,7 +641,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     /**
      * @notice Return the price tracked by the aggreagator using chainlink's data feed, with wnative's decimals
      * @param dfAddress The address of the data feed
-     * @return price The price tracked by the aggreagator, with wnative's decimals
+     * @return price The price tracked by the aggregator, with wnative's decimals
      */
     function _getPriceFromChainlink(address dfAddress) private view returns (uint256 price) {
         AggregatorV3Interface aggregator = AggregatorV3Interface(dfAddress);
