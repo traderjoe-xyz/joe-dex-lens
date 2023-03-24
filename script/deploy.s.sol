@@ -6,7 +6,7 @@ import "forge-std/Script.sol";
 import "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "openzeppelin/proxy/transparent/ProxyAdmin.sol";
 
-import "../../src/JoeDexLens.sol";
+import "src/JoeDexLens.sol";
 
 contract Deploy is Script {
     using stdJson for string;
@@ -20,8 +20,12 @@ contract Deploy is Script {
     }
 
     string[] chains = ["avalanche"];
+
+    JoeDexLens[] listJoeDexLens = new JoeDexLens[](chains.length);
+    ProxyAdmin[] listProxyAdmin = new ProxyAdmin[](chains.length);
+    TransparentUpgradeableProxy[] listTransparentUpgradeableProxy = new TransparentUpgradeableProxy[](chains.length);
     
-    function run() public returns (JoeDexLens, ProxyAdmin, TransparentUpgradeableProxy) {
+    function run() public returns (JoeDexLens[] memory, ProxyAdmin[] memory , TransparentUpgradeableProxy[] memory) {
         
         string memory json = vm.readFile("script/config/deployments.json");
         uint256 deployerPrivateKey = vm.envUint("DEPLOY_PRIVATE_KEY");
@@ -50,15 +54,18 @@ contract Deploy is Script {
             TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
                 address(implementation),
                 address(proxyAdmin),
-                abi.encodeWithSignature("initialize(address)", deployment.native_usd_aggregator)
+                abi.encodeWithSelector(JoeDexLens.initialize.selector, deployment.native_usd_aggregator)
             );
+
+            listJoeDexLens[i] = implementation;
+            listProxyAdmin[i] = proxyAdmin;
+            listTransparentUpgradeableProxy[i] = proxy;
 
             vm.stopBroadcast();
             /**
             * Stop broadcasting the transaction to the network.
             */
-
-            return (implementation, proxyAdmin, proxy);
-        }
+            }
+        return (listJoeDexLens, listProxyAdmin, listTransparentUpgradeableProxy);
     }
 }
