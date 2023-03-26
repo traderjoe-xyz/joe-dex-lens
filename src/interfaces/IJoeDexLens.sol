@@ -50,7 +50,7 @@ interface IJoeDexLens is ISafeAccessControlEnumerable {
     }
 
     /// @notice Structure for a set of data feeds
-    /// `datafeeds` is the list of addresses of all the data feeds
+    /// `datafeeds` is the list of all the data feeds
     /// `indexes` is a mapping linking the address of a data feed to its index in the `datafeeds` list.
     struct DataFeedSet {
         DataFeed[] dataFeeds;

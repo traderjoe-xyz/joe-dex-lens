@@ -77,7 +77,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      */
     modifier verifyDataFeed(address token, DataFeed calldata dataFeed) {
         address collateralAddress = dataFeed.collateralAddress;
-        if (dataFeed.collateralAddress == token) revert JoeDexLens__SameTokens();
+        if (collateralAddress == token) revert JoeDexLens__SameTokens();
 
         DataFeedType dfType = dataFeed.dfType;
 
@@ -785,7 +785,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     /**
      * @notice Tries to find the price of the token on v2.1, v2 and v1 pairs.
      * V2.1 and v2 pairs are checked to have enough liquidity in them, to avoid pricing using stale pools
-     * @dev Will revert if no pools were created
+     * @dev Will return 0 if the token is not paired with wnative on any of the different versions
      * @param token The address of the token
      * @return price The weighted average, based on pair's liquidity, of the token with the collateral's decimals
      */
@@ -806,7 +806,8 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     /**
      * @notice Loops through all the wnative/token v2.1 pairs and returns the price of the token if a valid one was found
      * @param token The address of the token
-     * @return weightedPrice The weighted price, based on pair's liquidity, of the token with the collateral's decimals
+     * @return weightedPrice The weighted price, based on the paired wnative's liquidity,
+     * of the token with the collateral's decimals
      * @return totalWeight The total weight of the pairs
      */
     function _v2_1FallbackNativePrice(address token)
@@ -826,12 +827,10 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
                 (uint24 activeId, uint16 binStep, uint256 price, bool isTokenX) =
                     _getPriceFromLb(lbPair, DataFeedType.V2_1, token);
 
-                if (price == 0) {
-                    uint256 scaledReserves = _getLbBinReserves(lbPair, activeId, binStep, isTokenX);
+                uint256 scaledReserves = _getLbBinReserves(lbPair, activeId, binStep, isTokenX);
 
-                    weightedPrice += price * scaledReserves;
-                    totalWeight += scaledReserves;
-                }
+                weightedPrice += price * scaledReserves;
+                totalWeight += scaledReserves;
             }
         }
     }
@@ -839,7 +838,8 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     /**
      * @notice Loops through all the wnative/token v2 pairs and returns the price of the token if a valid one was found
      * @param token The address of the token
-     * @return weightedPrice The weighted price, based on pair's liquidity, of the token with the collateral's decimals
+     * @return weightedPrice The weighted price, based on the paired wnative's liquidity,
+     * of the token with the collateral's decimals
      * @return totalWeight The total weight of the pairs
      */
     function _v2FallbackNativePrice(address token) private view returns (uint256 weightedPrice, uint256 totalWeight) {
@@ -866,7 +866,8 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     /**
      * @notice Fetchs the wnative/token v1 pair and returns the price of the token if a valid one was found
      * @param token The address of the token
-     * @return weightedPrice The weighted price, based on pair's liquidity, of the token with the collateral's decimals
+     * @return weightedPrice The weighted price, based on the paired wnative's liquidity,
+     * of the token with the collateral's decimals
      * @return totalWeight The total weight of the pairs
      */
     function _v1FallbackNativePrice(address token) private view returns (uint256 weightedPrice, uint256 totalWeight) {
@@ -884,7 +885,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
     /**
      * @notice Get the scaled reserves of the bins that are close to the active bin, based on the bin step
-     * and the other token's reserves.
+     * and the wnative's reserves.
      * @dev Multiply the reserves by `20_000 / binStep` to get the scaled reserves and compare them to the
      * reserves of the V1 pair. This is an approximation of the price impact of the different versions.
      * @param lbPair The address of the liquidity book pair
