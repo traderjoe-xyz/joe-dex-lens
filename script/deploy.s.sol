@@ -15,6 +15,7 @@ contract Deploy is Script {
         address joeFactory;
         address lbFactory;
         address lbLegacyFactory;
+        address multisig;
         address native_usd_aggregator;
         address w_native;
     }
@@ -60,6 +61,10 @@ contract Deploy is Script {
             listJoeDexLens[i] = implementation;
             listProxyAdmin[i] = proxyAdmin;
             listTransparentUpgradeableProxy[i] = proxy;
+
+            vm.makePersistent(address(implementation));
+            vm.makePersistent(address(proxyAdmin));
+            vm.makePersistent(address(proxy));
 
             vm.stopBroadcast();
             /**
