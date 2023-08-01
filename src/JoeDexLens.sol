@@ -218,7 +218,17 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      * @return prices The prices of each token in USD, with wnative's decimals
      */
     function getTokensPricesUSD(address[] calldata tokens) external view override returns (uint256[] memory prices) {
-        return _getTokenWeightedAverageNativePrices(tokens);
+        uint256 nativePrice = _getNativePrice();
+
+        prices = new uint256[](tokens.length);
+
+        for (uint256 i; i < prices.length;) {
+            prices[i] = _getTokenWeightedAverageNativePrice(tokens[i]) * nativePrice / _WNATIVE_PRECISION;
+
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     /**
