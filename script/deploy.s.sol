@@ -11,7 +11,7 @@ import "src/JoeDexLens.sol";
 contract Deploy is Script {
     using stdJson for string;
 
-    struct Deployment{
+    struct Deployment {
         address joeFactory;
         address lbFactory;
         address lbLegacyFactory;
@@ -25,9 +25,8 @@ contract Deploy is Script {
     JoeDexLens[] listJoeDexLens = new JoeDexLens[](chains.length);
     ProxyAdmin[] listProxyAdmin = new ProxyAdmin[](chains.length);
     TransparentUpgradeableProxy[] listTransparentUpgradeableProxy = new TransparentUpgradeableProxy[](chains.length);
-    
-    function run() public returns (JoeDexLens[] memory, ProxyAdmin[] memory , TransparentUpgradeableProxy[] memory) {
-        
+
+    function run() public returns (JoeDexLens[] memory, ProxyAdmin[] memory, TransparentUpgradeableProxy[] memory) {
         string memory json = vm.readFile("script/config/deployments.json");
         uint256 deployerPrivateKey = vm.envUint("DEPLOY_PRIVATE_KEY");
 
@@ -40,8 +39,8 @@ contract Deploy is Script {
             vm.createSelectFork(StdChains.getChain(chains[i]).rpcUrl);
 
             /**
-            * Start broadcasting the transaction to the network.
-            */
+             * Start broadcasting the transaction to the network.
+             */
             vm.startBroadcast(deployerPrivateKey);
 
             ProxyAdmin proxyAdmin = new ProxyAdmin();
@@ -62,15 +61,14 @@ contract Deploy is Script {
             listProxyAdmin[i] = proxyAdmin;
             listTransparentUpgradeableProxy[i] = proxy;
 
-            vm.makePersistent(address(implementation));
-            vm.makePersistent(address(proxyAdmin));
-            vm.makePersistent(address(proxy));
+            Ownable(address(proxyAdmin)).transferOwnership(deployment.multisig);
+            JoeDexLens(address(proxy)).setPendingOwner(deployment.multisig);
 
             vm.stopBroadcast();
             /**
-            * Stop broadcasting the transaction to the network.
-            */
-            }
+             * Stop broadcasting the transaction to the network.
+             */
+        }
         return (listJoeDexLens, listProxyAdmin, listTransparentUpgradeableProxy);
     }
 }
