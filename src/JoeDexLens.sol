@@ -13,9 +13,7 @@ import {ILBLegacyPair} from "joe-v2/interfaces/ILBLegacyPair.sol";
 import {ILBPair} from "joe-v2/interfaces/ILBPair.sol";
 import {Uint256x256Math} from "joe-v2/libraries/math/Uint256x256Math.sol";
 import {IERC20Metadata, IERC20} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
-import {
-    ISafeAccessControlEnumerable, SafeAccessControlEnumerable
-} from "solrary/access/SafeAccessControlEnumerable.sol";
+import {SafeAccessControlEnumerable} from "solrary/access/SafeAccessControlEnumerable.sol";
 
 import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
 import {IJoeDexLens} from "./interfaces/IJoeDexLens.sol";
@@ -37,6 +35,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
     uint256 private constant _BIN_WIDTH = 5;
     uint256 private constant _TWO_BASIS_POINT = 20_000;
+    uint256 private constant _MAX_TRUSTED_LEVELS = 5;
 
     ILBFactory private immutable _FACTORY_V2_1;
     ILBLegacyFactory private immutable _LEGACY_FACTORY_V2;
@@ -50,6 +49,9 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      * @dev Mapping from a token to an enumerable set of data feeds used to get the price of the token
      */
     mapping(address => DataFeedSet) private _whitelistedDataFeeds;
+
+    mapping(uint256 => TrustedTokens) private _trustedLevels;
+    uint256 private _trustedLevelsLength;
 
     /**
      * Modifiers *
@@ -77,7 +79,8 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      */
     modifier verifyDataFeed(address token, DataFeed calldata dataFeed) {
         address collateralAddress = dataFeed.collateralAddress;
-        if (collateralAddress == token) revert JoeDexLens__SameTokens();
+
+        if (collateralAddress == token && token != _WNATIVE) revert JoeDexLens__SameTokens();
 
         DataFeedType dfType = dataFeed.dfType;
 
@@ -143,14 +146,24 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     /**
      * @notice Initialize the contract
      * @dev Transfer the ownership to the sender and set the native data feed
-     * @param aggregator The address of the aggregator
+     * @param nativeDataFeeds The list of Native data feeds informations
      */
-    function initialize(address aggregator) external {
-        if (_getDataFeedsLength(_WNATIVE) != 0) revert JoeDexLens__AlreadyInitialized();
-        _whitelistedDataFeeds[_WNATIVE].dataFeeds.push();
+    function initialize(DataFeed[] calldata nativeDataFeeds) external {
+        if (_trustedLevelsLength != 0) revert JoeDexLens__AlreadyInitialized();
+        if (nativeDataFeeds.length == 0) revert JoeDexLens__EmptyDataFeeds();
 
         _transferOwnership(msg.sender);
-        _setNativeDataFeed(aggregator);
+
+        _trustedLevels[0].tokens.push(_WNATIVE);
+        _trustedLevelsLength = 1;
+
+        for (uint256 i; i < nativeDataFeeds.length;) {
+            _addDataFeed(_WNATIVE, nativeDataFeeds[i]);
+
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     /**
@@ -250,17 +263,8 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      */
 
     /**
-     * @notice Set the chainlink datafeed for the native token
-     * @dev Can only be called by the owner
-     * @param aggregator The address of the chainlink aggregator
-     */
-    function setNativeDataFeed(address aggregator) external override onlyOwnerOrRole(DATA_FEED_MANAGER_ROLE) {
-        _setNativeDataFeed(aggregator);
-    }
-
-    /**
      * @notice Add a data feed for a specific token
-     * @dev Can only be called by the owner
+     * @dev Can only be called by the owner or by the datafeed manager
      * @param token The address of the token
      * @param dataFeed The data feeds information
      */
@@ -269,14 +273,12 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         override
         onlyOwnerOrRole(DATA_FEED_MANAGER_ROLE)
     {
-        if (token == _WNATIVE) revert JoeDexLens__NativeToken();
-
         _addDataFeed(token, dataFeed);
     }
 
     /**
      * @notice Set the Native weight for a specific data feed of a token
-     * @dev Can only be called by the owner
+     * @dev Can only be called by the owner or by the datafeed manager
      * @param token The address of the token
      * @param dfAddress The data feed address
      * @param newWeight The new weight of the data feed
@@ -291,7 +293,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
     /**
      * @notice Remove a data feed of a token
-     * @dev Can only be called by the owner
+     * @dev Can only be called by the owner or by the datafeed manager
      * @param token The address of the token
      * @param dfAddress The data feed address
      */
@@ -300,14 +302,28 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         override
         onlyOwnerOrRole(DATA_FEED_MANAGER_ROLE)
     {
-        if (token == _WNATIVE) revert JoeDexLens__NativeToken();
-
         _removeDataFeed(token, dfAddress);
     }
 
     /**
+     * @notice Set the trusted tokens for a specific level
+     * @dev Can only be called by the owner or by the datafeed manager
+     * @param level The level of trust
+     * @param tokens The list of addresses of the tokens
+     */
+    function setTrustedTokensAt(uint256 level, address[] calldata tokens)
+        external
+        override
+        onlyOwnerOrRole(DATA_FEED_MANAGER_ROLE)
+    {
+        if (level == 0) revert JoeDexLens__InvalidLevel();
+
+        _setTrustedTokensAt(level, tokens);
+    }
+
+    /**
      * @notice Batch add data feed for each (token, data feed)
-     * @dev Can only be called by the owner
+     * @dev Can only be called by the owner or by the datafeed manager
      * @param tokens The addresses of the tokens
      * @param dataFeeds The list of Native data feeds informations
      */
@@ -321,7 +337,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
     /**
      * @notice Batch set the Native weight for each (token, data feed)
-     * @dev Can only be called by the owner
+     * @dev Can only be called by the owner or by the datafeed manager
      * @param tokens The list of addresses of the tokens
      * @param dfAddresses The list of Native data feed addresses
      * @param newWeights The list of new weights of the data feeds
@@ -336,7 +352,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
     /**
      * @notice Batch remove a list of data feeds for each (token, data feed)
-     * @dev Can only be called by the owner
+     * @dev Can only be called by the owner or by the datafeed manager
      * @param tokens The list of addresses of the tokens
      * @param dfAddresses The list of data feed addresses
      */
@@ -540,18 +556,27 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     }
 
     /**
-     * @notice Set the native token's data feed
-     * @param aggregator The address of the chainlink aggregator
+     * @notice Set the list of trusted tokens at a specific level
+     * @param level The level of the trusted tokens
+     * @param tokens The list of addresses of the tokens
      */
-    function _setNativeDataFeed(address aggregator) private {
-        if (_getDataFeedAt(_WNATIVE, 0).dfAddress == aggregator) revert JoeDexLens__SameDataFeed();
+    function _setTrustedTokensAt(uint256 level, address[] calldata tokens) private {
+        if (level >= _trustedLevelsLength) {
+            if (level > _MAX_TRUSTED_LEVELS) revert JoeDexLens__ExceedsMaxLevels();
+            _trustedLevelsLength = level + 1;
+        }
 
-        DataFeed memory dataFeed = DataFeed(_WNATIVE, aggregator, 1, DataFeedType.CHAINLINK);
-        _whitelistedDataFeeds[_WNATIVE].dataFeeds[0] = dataFeed;
+        for (uint256 i; i < tokens.length;) {
+            if (_getDataFeedsLength(tokens[i]) == 0) revert JoeDexLens__NoDataFeeds(tokens[i]);
 
-        if (_getPriceFromChainlink(aggregator) == 0) revert JoeDexLens__InvalidChainLinkPrice();
+            unchecked {
+                ++i;
+            }
+        }
 
-        emit NativeDataFeedSet(aggregator);
+        _trustedLevels[level].tokens = tokens;
+
+        emit TrustedTokensSet(level, tokens);
     }
 
     /**
@@ -560,7 +585,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      * @return price The price of the native token, with the native token's decimals
      */
     function _getNativePrice() private view returns (uint256 price) {
-        return _getPriceFromChainlink(_getDataFeedAt(_WNATIVE, 0).dfAddress);
+        return _getTokenWeightedAveragePrice(_WNATIVE);
     }
 
     /**
@@ -572,11 +597,19 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     function _getTokenWeightedAverageNativePrice(address token) private view returns (uint256 price) {
         if (token == _WNATIVE) return _WNATIVE_PRECISION;
 
+        price = _getTokenWeightedAveragePrice(token);
+        bool p = price > 0;
+        price = price == 0 ? _getNativePriceAnyToken(token) : price;
+    }
+
+    /**
+     * @notice Return the weighted average price of a token using its data feeds
+     * @return price The weighted average price of the token, with the wnative's decimals
+     */
+    function _getTokenWeightedAveragePrice(address token) private view returns (uint256 price) {
         uint256 length = _getDataFeedsLength(token);
-        if (length == 0) return _getNativePriceAnyToken(token);
 
         uint256 totalWeights;
-
         for (uint256 i; i < length;) {
             DataFeed memory dataFeed = _getDataFeedAt(token, i);
 
@@ -797,30 +830,73 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      * V2.1 and v2 pairs are checked to have enough liquidity in them, to avoid pricing using stale pools
      * @dev Will return 0 if the token is not paired with wnative on any of the different versions
      * @param token The address of the token
-     * @return price The weighted average, based on pair's liquidity, of the token with the collateral's decimals
+     * @return The weighted average, based on pair's liquidity, of the token with the collateral's decimals
      */
-    function _getNativePriceAnyToken(address token) private view returns (uint256 price) {
-        // First check the token price on v2.1
-        (uint256 weightedPriceV2_1, uint256 totalWeightV2_1) = _v2_1FallbackNativePrice(token);
+    function _getNativePriceAnyToken(address token) private view returns (uint256) {
+        uint256 trustedLevelsLength = _trustedLevelsLength;
 
-        // Then on v2
-        (uint256 weightedPriceV2, uint256 totalWeightV2) = _v2FallbackNativePrice(token);
+        for (uint256 i; i < trustedLevelsLength;) {
+            address[] memory trustedTokens = _trustedLevels[i].tokens;
 
-        // Then on v1
-        (uint256 weightedPriceV1, uint256 totalWeightV1) = _v1FallbackNativePrice(token);
+            uint256 price;
+            uint256 weight;
+            for (uint256 j; j < trustedTokens.length;) {
+                address trustedToken = trustedTokens[j];
 
-        uint256 totalWeight = totalWeightV2_1 + totalWeightV2 + totalWeightV1;
-        return totalWeight == 0 ? 0 : (weightedPriceV2_1 + weightedPriceV2 + weightedPriceV1) / totalWeight;
+                if (trustedToken != token) {
+                    (uint256 weightedPriceV2_1, uint256 totalWeightV2_1) = _v2_1FallbackPrice(token, trustedToken);
+                    (uint256 weightedPriceV2, uint256 totalWeightV2) = _v2FallbackPrice(token, trustedToken);
+                    (uint256 weightedPriceV1, uint256 totalWeightV1) = _v1FallbackPrice(token, trustedToken);
+
+                    uint256 totalWeight = totalWeightV2_1 + totalWeightV2 + totalWeightV1;
+
+                    if (totalWeight != 0) {
+                        uint256 pairPrice = (weightedPriceV2_1 + weightedPriceV2 + weightedPriceV1);
+                        uint256 trustedTokenPrice = _getTokenWeightedAverageNativePrice(trustedToken);
+
+                        price += pairPrice * trustedTokenPrice / _WNATIVE_PRECISION;
+                        weight += totalWeight;
+                    }
+                }
+
+                unchecked {
+                    ++j;
+                }
+            }
+
+            if (weight != 0) {
+                return price / weight;
+            }
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        return 0;
+
+        // // First check the token price on v2.1
+        // (uint256 weightedPriceV2_1, uint256 totalWeightV2_1) = _v2_1FallbackPrice(token);
+
+        // // Then on v2
+        // (uint256 weightedPriceV2, uint256 totalWeightV2) = _v2FallbackPrice(token);
+
+        // // Then on v1
+        // (uint256 weightedPriceV1, uint256 totalWeightV1) = _v1FallbackPrice(token);
+
+        // uint256 totalWeight = totalWeightV2_1 + totalWeightV2 + totalWeightV1;
+        // return totalWeight == 0 ? 0 : (weightedPriceV2_1 + weightedPriceV2 + weightedPriceV1) / totalWeight;
     }
 
     /**
-     * @notice Loops through all the wnative/token v2.1 pairs and returns the price of the token if a valid one was found
+     * @notice Loops through all the collateral/token v2.1 pairs and returns the price of the token if a valid one was found
      * @param token The address of the token
-     * @return weightedPrice The weighted price, based on the paired wnative's liquidity,
+     * @param collateral The address of the collateral
+     * @return weightedPrice The weighted price, based on the paired collateral's liquidity,
      * of the token with the collateral's decimals
      * @return totalWeight The total weight of the pairs
      */
-    function _v2_1FallbackNativePrice(address token)
+    function _v2_1FallbackPrice(address token, address collateral)
         private
         view
         returns (uint256 weightedPrice, uint256 totalWeight)
@@ -828,7 +904,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         if (address(_FACTORY_V2_1) == address(0)) return (0, 0);
 
         ILBFactory.LBPairInformation[] memory lbPairsAvailable =
-            _FACTORY_V2_1.getAllLBPairs(IERC20(_WNATIVE), IERC20(token));
+            _FACTORY_V2_1.getAllLBPairs(IERC20(collateral), IERC20(token));
 
         if (lbPairsAvailable.length != 0) {
             for (uint256 i = 0; i < lbPairsAvailable.length; i++) {
@@ -846,17 +922,22 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     }
 
     /**
-     * @notice Loops through all the wnative/token v2 pairs and returns the price of the token if a valid one was found
+     * @notice Loops through all the collateral/token v2 pairs and returns the price of the token if a valid one was found
      * @param token The address of the token
-     * @return weightedPrice The weighted price, based on the paired wnative's liquidity,
+     * @param collateral The address of the collateral
+     * @return weightedPrice The weighted price, based on the paired collateral's liquidity,
      * of the token with the collateral's decimals
      * @return totalWeight The total weight of the pairs
      */
-    function _v2FallbackNativePrice(address token) private view returns (uint256 weightedPrice, uint256 totalWeight) {
+    function _v2FallbackPrice(address token, address collateral)
+        private
+        view
+        returns (uint256 weightedPrice, uint256 totalWeight)
+    {
         if (address(_LEGACY_FACTORY_V2) == address(0)) return (0, 0);
 
         ILBLegacyFactory.LBPairInformation[] memory lbPairsAvailable =
-            _LEGACY_FACTORY_V2.getAllLBPairs(IERC20(_WNATIVE), IERC20(token));
+            _LEGACY_FACTORY_V2.getAllLBPairs(IERC20(collateral), IERC20(token));
 
         if (lbPairsAvailable.length != 0) {
             for (uint256 i = 0; i < lbPairsAvailable.length; i++) {
@@ -874,16 +955,21 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     }
 
     /**
-     * @notice Fetchs the wnative/token v1 pair and returns the price of the token if a valid one was found
+     * @notice Fetchs the collateral/token v1 pair and returns the price of the token if a valid one was found
      * @param token The address of the token
-     * @return weightedPrice The weighted price, based on the paired wnative's liquidity,
+     * @param collateral The address of the collateral
+     * @return weightedPrice The weighted price, based on the paired collateral's liquidity,
      * of the token with the collateral's decimals
      * @return totalWeight The total weight of the pairs
      */
-    function _v1FallbackNativePrice(address token) private view returns (uint256 weightedPrice, uint256 totalWeight) {
+    function _v1FallbackPrice(address token, address collateral)
+        private
+        view
+        returns (uint256 weightedPrice, uint256 totalWeight)
+    {
         if (address(_FACTORY_V1) == address(0)) return (0, 0);
 
-        address pair = _FACTORY_V1.getPair(token, _WNATIVE);
+        address pair = _FACTORY_V1.getPair(token, collateral);
 
         if (pair != address(0)) {
             (uint256 reserve0, uint256 reserve1, uint256 price, bool isTokenX) = _getPriceFromV1(pair, token);
@@ -895,7 +981,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
     /**
      * @notice Get the scaled reserves of the bins that are close to the active bin, based on the bin step
-     * and the wnative's reserves.
+     * and the collateral's reserves.
      * @dev Multiply the reserves by `20_000 / binStep` to get the scaled reserves and compare them to the
      * reserves of the V1 pair. This is an approximation of the price impact of the different versions.
      * @param lbPair The address of the liquidity book pair

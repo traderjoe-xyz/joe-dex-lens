@@ -17,7 +17,6 @@ interface IJoeDexLens is ISafeAccessControlEnumerable {
     error JoeDexLens__CollateralNotInPair(address pair, address collateral);
     error JoeDexLens__TokenNotInPair(address pair, address token);
     error JoeDexLens__SameTokens();
-    error JoeDexLens__NativeToken();
     error JoeDexLens__DataFeedAlreadyAdded(address token, address dataFeed);
     error JoeDexLens__DataFeedNotInSet(address token, address dataFeed);
     error JoeDexLens__LengthsMismatch();
@@ -29,7 +28,11 @@ interface IJoeDexLens is ISafeAccessControlEnumerable {
     error JoeDexLens__AlreadyInitialized();
     error JoeDexLens__InvalidDataFeed();
     error JoeDexLens__ZeroAddress();
+    error JoeDexLens__EmptyDataFeeds();
     error JoeDexLens__SameDataFeed();
+    error JoeDexLens__ExceedsMaxLevels();
+    error JoeDexLens__InvalidLevel();
+    error JoeDexLens__NoDataFeeds(address token);
 
     /// @notice Enumerators of the different data feed types
     enum DataFeedType {
@@ -39,9 +42,11 @@ interface IJoeDexLens is ISafeAccessControlEnumerable {
         CHAINLINK
     }
 
-    /// @notice Structure for data feeds, contains the data feed's address and its type.
-    /// For V1/V2, the`dfAddress` should be the address of the pair
-    /// For chainlink, the `dfAddress` should be the address of the aggregator
+    /**
+     * @notice Structure for data feeds, contains the data feed's address and its type.
+     * For V1/V2, the`dfAddress` should be the address of the pair
+     * For chainlink, the `dfAddress` should be the address of the aggregator
+     */
     struct DataFeed {
         address collateralAddress;
         address dfAddress;
@@ -49,21 +54,30 @@ interface IJoeDexLens is ISafeAccessControlEnumerable {
         DataFeedType dfType;
     }
 
-    /// @notice Structure for a set of data feeds
-    /// `datafeeds` is the list of all the data feeds
-    /// `indexes` is a mapping linking the address of a data feed to its index in the `datafeeds` list.
+    /**
+     * @notice Structure for a set of data feeds
+     * `datafeeds` is the list of all the data feeds
+     * `indexes` is a mapping linking the address of a data feed to its index in the `datafeeds` list.
+     */
     struct DataFeedSet {
         DataFeed[] dataFeeds;
         mapping(address => uint256) indexes;
     }
 
-    event NativeDataFeedSet(address dfAddress);
+    /**
+     * @notice List of trusted tokens
+     */
+    struct TrustedTokens {
+        address[] tokens;
+    }
 
     event DataFeedAdded(address token, DataFeed dataFeed);
 
     event DataFeedsWeightSet(address token, address dfAddress, uint256 weight);
 
     event DataFeedRemoved(address token, address dfAddress);
+
+    event TrustedTokensSet(uint256 indexed level, address[] tokens);
 
     function getWNative() external view returns (address wNative);
 
@@ -89,6 +103,8 @@ interface IJoeDexLens is ISafeAccessControlEnumerable {
 
     function removeDataFeed(address token, address dfAddress) external;
 
+    function setTrustedTokensAt(uint256 level, address[] calldata tokens) external;
+
     function addDataFeeds(address[] calldata tokens, DataFeed[] calldata dataFeeds) external;
 
     function setDataFeedsWeights(
@@ -98,6 +114,4 @@ interface IJoeDexLens is ISafeAccessControlEnumerable {
     ) external;
 
     function removeDataFeeds(address[] calldata tokens, address[] calldata dfAddresses) external;
-
-    function setNativeDataFeed(address aggregator) external;
 }

@@ -22,7 +22,7 @@ abstract contract TestHelper is Test {
     address payable internal immutable DEV = payable(address(this));
     address internal immutable ALICE = makeAddr("alice");
 
-    uint8 internal constant DEFAULT_BIN_STEP = 20;
+    uint8 internal constant DEFAULT_BIN_STEP = 25;
     uint16 internal constant DEFAULT_BASE_FACTOR = 5_000;
     uint16 internal constant DEFAULT_FILTER_PERIOD = 30;
     uint16 internal constant DEFAULT_DECAY_PERIOD = 600;
@@ -31,15 +31,15 @@ abstract contract TestHelper is Test {
     uint16 internal constant DEFAULT_PROTOCOL_SHARE = 1_000;
     uint24 internal constant DEFAULT_MAX_VOLATILITY_ACCUMULATOR = 350_000;
     uint256 internal constant DEFAULT_FLASHLOAN_FEE = 8e14;
+
     uint24 internal constant ID_ONE = 2 ** 23;
 
     address public constant tokenOwner = 0xFFC08538077a0455E0F4077823b1A0E3e18Faf0b;
     address public constant factoryOwner = 0x2fbB61a10B96254900C03F1644E9e1d2f5E76DD2;
     address public constant avaxDataFeed = 0x0A77230d17318075983913bC2145DB16C7366156;
 
-    LBRouter public lbRouter;
-    LBFactory public lbFactory;
-
+    ILBRouter public constant lbRouter = ILBRouter(0xb4315e873dBcf96Ffd0acd8EA43f689D8c20fB30);
+    ILBFactory public lbFactory = ILBFactory(0x8e42f2F4101563bF679975178e880FD87d3eFd4e);
     ILBLegacyFactory public constant LBLegacyFactory = ILBLegacyFactory(0x6E77932A92582f504FF6c4BdbCef7Da6c198aEEf);
     ILBLegacyRouter public constant LBLegacyRouter = ILBLegacyRouter(0xE3Ffc583dC176575eEA7FD9dF2A7c65F7E23f4C3);
     IJoeFactory public constant factoryV1 = IJoeFactory(0x9Ad6C38BE94206cA50bb0d90783181662f0Cfa10);
@@ -56,39 +56,17 @@ abstract contract TestHelper is Test {
     address public constant AVAX_USDT_V1 = 0xbb4646a764358ee93c2a9c4a147d5aDEd527ab73;
     address public constant AVAX_ETH_V1 = 0xFE15c2695F1F920da45C30AAE47d11dE51007AF9;
 
-    address public constant AVAX_USDC_20BP = 0xB5352A39C11a81FE6748993D586EC448A01f08b5;
-    address public constant AVAX_USDT_20BP = 0xdF3E481a05F58c387Af16867e9F5dB7f931113c9;
-    address public constant AVAX_ETH_10BP = 0x42Be75636374dfA0e57EB96fA7F68fE7FcdAD8a3;
-    address public constant ETH_USDC_15BP = 0x5851E2d6396bcc26FB9eEE21effbF99e0d2B2148;
-    address public constant ZJOE_JOE_5BP = 0xeDdE9c9F9960784870A84Aaafcb77F965DF012aa;
-    address public constant JOE_USDC_25BP = 0xf1f4CE5Dd70D4384F9B764020f26E8CABEE39070;
-    address public constant DAI_USDC_1BP = 0x855Ee438445075F25C18A125BA6607543052A194;
-    address public constant JOE_AVAX_15BP = 0xc01961EdE437Bf0cC41D064B1a3F6F0ea6aa2a40;
+    address public constant AVAX_USDC_20BP = 0xD446eb1660F766d533BeCeEf890Df7A69d26f7d1;
+    address public constant AVAX_USDT_20BP = 0x87EB2F90d7D0034571f343fb7429AE22C1Bd9F72;
+    address public constant AVAX_ETH_10BP = 0x1901011a39B11271578a1283D620373aBeD66faA;
+    address public constant ETH_USDC_15BP = 0x51146e0bF2dCC368DE6F5201FE7c427DA28D05De;
+    address public constant JOE_USDC_25BP = 0x9A0A97D8005d9f783A054aa5CD8878bB0CCF414D;
+    address public constant DAI_USDC_1BP = 0x2f1DA4bafd5f2508EC2e2E425036063A374993B6;
+    address public constant JOE_AVAX_15BP = 0x9f8973FB86b35C307324eC31fd81Cf565E2F4a63;
 
     JoeDexLens public joeDexLens;
 
-    bool useLegacyBinStep = true;
-
     function setUp() public virtual {
-        lbFactory = new LBFactory(DEV,  DEFAULT_FLASHLOAN_FEE);
-        lbFactory.setLBPairImplementation(address(new LBPair(lbFactory)));
-
-        lbRouter = new LBRouter(lbFactory, factoryV1, LBLegacyFactory, LBLegacyRouter, IWNATIVE(wNative));
-
-        lbFactory.setPreset(
-            DEFAULT_BIN_STEP * 2,
-            DEFAULT_BASE_FACTOR,
-            DEFAULT_FILTER_PERIOD,
-            DEFAULT_DECAY_PERIOD,
-            DEFAULT_REDUCTION_FACTOR,
-            DEFAULT_VARIABLE_FEE_CONTROL,
-            DEFAULT_PROTOCOL_SHARE,
-            DEFAULT_MAX_VOLATILITY_ACCUMULATOR,
-            true
-        );
-
-        lbFactory.addQuoteAsset(IERC20(USDC));
-
         vm.prank(factoryOwner);
         LBLegacyFactory.setFactoryLockedState(false);
 
@@ -108,8 +86,38 @@ abstract contract TestHelper is Test {
         vm.label(AVAX_USDC_20BP, "avax_usdc_20bp");
         vm.label(AVAX_USDT_20BP, "avax_usdt_20bp");
         vm.label(AVAX_ETH_10BP, "avax_eth_10bp");
-        vm.label(ZJOE_JOE_5BP, "zjoe_joe_5bp");
         vm.label(JOE_USDC_25BP, "joe_usdc_25bp");
         vm.label(DAI_USDC_1BP, "dai_usdc_1bp");
+    }
+
+    function createLBPairV2_1(address tokenA, address quoteToken, uint24 id) internal returns (address) {
+        return address(lbFactory.createLBPair(IERC20(tokenA), IERC20(quoteToken), id, DEFAULT_BIN_STEP));
+    }
+
+    function addLiquidityV2_1(address pair, uint256 amountX, uint256 amountY) internal {
+        require(amountX > 0 && amountY > 0, "TestHelper: amount must be greater than 0");
+
+        IERC20 tokenX = ILBPair(pair).getTokenX();
+        IERC20 tokenY = ILBPair(pair).getTokenY();
+        uint24 activeId = ILBPair(pair).getActiveId();
+
+        tokenX.approve(address(lbRouter), amountX);
+        tokenY.approve(address(lbRouter), amountY);
+
+        deal(address(tokenX), pair, tokenX.balanceOf(pair) + amountX);
+        deal(address(tokenY), pair, tokenY.balanceOf(pair) + amountY);
+
+        bytes32[] memory config = new bytes32[](9);
+
+        for (uint24 i = 0; i < 9; i++) {
+            uint24 id = activeId - 4 + i;
+
+            uint64 distribX = id >= activeId ? 0.2e18 : 0;
+            uint64 distribY = id <= activeId ? 0.2e18 : 0;
+
+            config[i] = LiquidityConfigurations.encodeParams(distribX, distribY, id);
+        }
+
+        ILBPair(pair).mint(DEV, config, DEV);
     }
 }
