@@ -19,12 +19,9 @@ contract TestJoeDexLens is TestHelper {
 
         joeDexLens = JoeDexLens(address(new TransparentUpgradeableProxy(address(imp), address(1), "")));
 
-        IJoeDexLens.DataFeed[] memory dataFeeds = new IJoeDexLens.DataFeed[](1);
+        IJoeDexLens.DataFeed[] memory dataFeeds = new IJoeDexLens.DataFeed[](2);
         dataFeeds[0] = IJoeDexLens.DataFeed(wNative, AVAX_USDC_20BP, 1000, IJoeDexLens.DataFeedType.V2_1);
-
-        // IJoeDexLens.DataFeed[] memory dataFeeds = new IJoeDexLens.DataFeed[](2);
-        // dataFeeds[0] = IJoeDexLens.DataFeed(wNative, AVAX_USDC_20BP, 1000, IJoeDexLens.DataFeedType.V2_1);
-        // dataFeeds[1] = IJoeDexLens.DataFeed(wNative, AVAX_USDT_20BP, 100, IJoeDexLens.DataFeedType.V2_1);
+        dataFeeds[1] = IJoeDexLens.DataFeed(wNative, AVAX_USDT_20BP, 100, IJoeDexLens.DataFeedType.V2_1);
 
         joeDexLens.initialize(dataFeeds);
     }
