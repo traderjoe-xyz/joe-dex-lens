@@ -33,6 +33,7 @@ interface IJoeDexLens is ISafeAccessControlEnumerable {
     error JoeDexLens__ExceedsMaxLevels();
     error JoeDexLens__InvalidLevel();
     error JoeDexLens__NoDataFeeds(address token);
+    error JoeDexLens__ExceedsMaxTokensPerLevel();
 
     /// @notice Enumerators of the different data feed types
     enum DataFeedType {

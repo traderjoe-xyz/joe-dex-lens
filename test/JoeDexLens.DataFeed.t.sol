@@ -163,10 +163,6 @@ contract TestJoeDexLens is TestHelper {
 
         joeDexLens.setTrustedTokensAt(1, trustedTokens);
 
-        console.log("USDC", USDC);
-        console.log("newToken0", newToken0);
-        console.log("newToken1", newToken1);
-
         assertApproxEqRel(
             joeDexLens.getTokenPriceNative(address(newToken1)),
             uint256(1e36) * 25 / 10 / AVAX_PRICE,

@@ -35,7 +35,9 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
     uint256 private constant _BIN_WIDTH = 5;
     uint256 private constant _TWO_BASIS_POINT = 20_000;
+
     uint256 private constant _MAX_TRUSTED_LEVELS = 5;
+    uint256 private constant _MAX_TRUSTED_TOKENS_PER_LEVEL = 8;
 
     ILBFactory private immutable _FACTORY_V2_1;
     ILBLegacyFactory private immutable _LEGACY_FACTORY_V2;
@@ -50,6 +52,14 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      */
     mapping(address => DataFeedSet) private _whitelistedDataFeeds;
 
+    /**
+     * @dev Mapping from a level to a list of trusted tokens
+     * The level 0 only contains the wnative token
+     * Any other level can contain up to 8 tokens
+     * When a token doesn't have any data feed, the contract will iterate over the level,
+     * until it finds at least one paired token with a data feed.
+     * If at the same level, multiple pairs are eligible, the contract will average the prices following their weights.
+     */
     mapping(uint256 => TrustedTokens) private _trustedLevels;
     uint256 private _trustedLevelsLength;
 
@@ -566,6 +576,8 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
             _trustedLevelsLength = level + 1;
         }
 
+        if (tokens.length > _MAX_TRUSTED_TOKENS_PER_LEVEL) revert JoeDexLens__ExceedsMaxTokensPerLevel();
+
         for (uint256 i; i < tokens.length;) {
             if (_getDataFeedsLength(tokens[i]) == 0) revert JoeDexLens__NoDataFeeds(tokens[i]);
 
@@ -598,8 +610,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         if (token == _WNATIVE) return _WNATIVE_PRECISION;
 
         price = _getTokenWeightedAveragePrice(token);
-        bool p = price > 0;
-        price = price == 0 ? _getNativePriceAnyToken(token) : price;
+        return price == 0 ? _getNativePriceAnyToken(token) : price;
     }
 
     /**
