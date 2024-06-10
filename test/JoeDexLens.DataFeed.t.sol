@@ -15,7 +15,7 @@ contract TestJoeDexLens is TestHelper {
         vm.createSelectFork(vm.rpcUrl("avalanche"), 41284321);
         super.setUp();
 
-        JoeDexLens imp = new JoeDexLens(lbFactory, LBLegacyFactory, factoryV1, wNative);
+        JoeDexLens imp = new JoeDexLens(lbFactory, lbFactory, LBLegacyFactory, factoryV1, wNative);
 
         joeDexLens = JoeDexLens(address(new TransparentUpgradeableProxy(address(imp), address(1), "")));
 
@@ -50,6 +50,17 @@ contract TestJoeDexLens is TestHelper {
             uint256(1e36) / AVAX_PRICE,
             0.05e18,
             "test_GetTokenPriceUsingNativeDataFeeds::4"
+        );
+
+        joeDexLens.removeDataFeed(USDC, AVAX_USDC_20BP);
+        joeDexLens.addDataFeed(USDC, IJoeDexLens.DataFeed(wNative, AVAX_USDC_20BP, 1000, IJoeDexLens.DataFeedType.V2_2));
+
+        assertApproxEqAbs(joeDexLens.getTokenPriceUSD(USDC), 1e18, 0.05e18, "test_GetTokenPriceUsingNativeDataFeeds::5");
+        assertApproxEqAbs(
+            joeDexLens.getTokenPriceNative(USDC),
+            uint256(1e36) / AVAX_PRICE,
+            0.05e18,
+            "test_GetTokenPriceUsingNativeDataFeeds::6"
         );
     }
 
@@ -196,27 +207,39 @@ contract TestJoeDexLens is TestHelper {
     }
 
     function test_revert_AddingUnsetVersions() public {
-        joeDexLens = new JoeDexLens(ILBFactory(address(0)), LBLegacyFactory, factoryV1, wNative);
+        joeDexLens = new JoeDexLens(ILBFactory(address(0)), lbFactory, LBLegacyFactory, factoryV1, wNative);
+
+        vm.expectRevert(IJoeDexLens.JoeDexLens__V2_2ContractNotSet.selector);
+        joeDexLens.addDataFeed(
+            address(0), IJoeDexLens.DataFeed(address(1), address(2), 0, IJoeDexLens.DataFeedType.V2_2)
+        );
+        joeDexLens = new JoeDexLens(lbFactory, ILBFactory(address(0)), LBLegacyFactory, factoryV1, wNative);
 
         vm.expectRevert(IJoeDexLens.JoeDexLens__V2_1ContractNotSet.selector);
         joeDexLens.addDataFeed(
             address(0), IJoeDexLens.DataFeed(address(1), address(2), 0, IJoeDexLens.DataFeedType.V2_1)
         );
 
-        joeDexLens = new JoeDexLens(lbFactory, ILBLegacyFactory(address(0)), factoryV1, wNative);
+        joeDexLens = new JoeDexLens(lbFactory, lbFactory, ILBLegacyFactory(address(0)), factoryV1, wNative);
 
         vm.expectRevert(IJoeDexLens.JoeDexLens__V2ContractNotSet.selector);
         joeDexLens.addDataFeed(address(0), IJoeDexLens.DataFeed(address(1), address(2), 0, IJoeDexLens.DataFeedType.V2));
 
-        joeDexLens = new JoeDexLens(lbFactory, LBLegacyFactory, IJoeFactory(address(0)), wNative);
+        joeDexLens = new JoeDexLens(lbFactory, lbFactory, LBLegacyFactory, IJoeFactory(address(0)), wNative);
 
         vm.expectRevert(IJoeDexLens.JoeDexLens__V1ContractNotSet.selector);
         joeDexLens.addDataFeed(address(0), IJoeDexLens.DataFeed(address(1), address(2), 0, IJoeDexLens.DataFeedType.V1));
 
         vm.expectRevert(IJoeDexLens.JoeDexLens__ZeroAddress.selector);
-        new JoeDexLens(lbFactory, LBLegacyFactory, factoryV1, address(0));
+        new JoeDexLens(lbFactory, lbFactory, LBLegacyFactory, factoryV1, address(0));
 
         vm.expectRevert(IJoeDexLens.JoeDexLens__ZeroAddress.selector);
-        new JoeDexLens(ILBFactory(address(0)), ILBLegacyFactory(address(0)), IJoeFactory(address(0)), wNative);
+        new JoeDexLens(
+            ILBFactory(address(0)),
+            ILBFactory(address(0)),
+            ILBLegacyFactory(address(0)),
+            IJoeFactory(address(0)),
+            wNative
+        );
     }
 }

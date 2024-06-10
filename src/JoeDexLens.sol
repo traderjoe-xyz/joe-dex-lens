@@ -39,6 +39,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
     uint256 private constant _MAX_TRUSTED_LEVELS = 5;
     uint256 private constant _MAX_TRUSTED_TOKENS_PER_LEVEL = 8;
 
+    ILBFactory private immutable _FACTORY_V2_2;
     ILBFactory private immutable _FACTORY_V2_1;
     ILBLegacyFactory private immutable _LEGACY_FACTORY_V2;
     IJoeFactory private immutable _FACTORY_V1;
@@ -95,7 +96,9 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         DataFeedType dfType = dataFeed.dfType;
 
         if (dfType != DataFeedType.CHAINLINK) {
-            if (dfType == DataFeedType.V2_1 && address(_FACTORY_V2_1) == address(0)) {
+            if (dfType == DataFeedType.V2_2 && address(_FACTORY_V2_2) == address(0)) {
+                revert JoeDexLens__V2_2ContractNotSet();
+            } else if (dfType == DataFeedType.V2_1 && address(_FACTORY_V2_1) == address(0)) {
                 revert JoeDexLens__V2_1ContractNotSet();
             } else if (dfType == DataFeedType.V2 && address(_LEGACY_FACTORY_V2) == address(0)) {
                 revert JoeDexLens__V2ContractNotSet();
@@ -129,23 +132,31 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      * @dev Revert if :
      * - All addresses are zero
      * - wnative is zero
-     * @param lbFactory The address of the v2.1 factory
+     * @param lbFactory2_2 The address of the v2.2 factory
+     * @param lbFactory2_1 The address of the v2.1 factory
      * @param lbLegacyFactory The address of the v2 factory
      * @param joeFactory The address of the v1 factory
      * @param wnative The address of the wnative token
      */
-    constructor(ILBFactory lbFactory, ILBLegacyFactory lbLegacyFactory, IJoeFactory joeFactory, address wnative) {
+    constructor(
+        ILBFactory lbFactory2_2,
+        ILBFactory lbFactory2_1,
+        ILBLegacyFactory lbLegacyFactory,
+        IJoeFactory joeFactory,
+        address wnative
+    ) {
         // revert if all addresses are zero or if wnative is zero
         if (
-            address(lbFactory) == address(0) && address(lbLegacyFactory) == address(0)
-                && address(joeFactory) == address(0) || wnative == address(0)
+            address(lbFactory2_2) == address(0) && address(lbFactory2_1) == address(0)
+                && address(lbLegacyFactory) == address(0) && address(joeFactory) == address(0) || wnative == address(0)
         ) {
             revert JoeDexLens__ZeroAddress();
         }
 
+        _FACTORY_V2_2 = lbFactory2_2;
         _FACTORY_V1 = joeFactory;
         _LEGACY_FACTORY_V2 = lbLegacyFactory;
-        _FACTORY_V2_1 = lbFactory;
+        _FACTORY_V2_1 = lbFactory2_1;
 
         _WNATIVE = wnative;
 
@@ -206,6 +217,14 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
      */
     function getFactoryV2_1() external view override returns (ILBFactory factoryV2) {
         return _FACTORY_V2_1;
+    }
+
+    /**
+     * @notice Returns the address of the factory v2.2
+     * @return factoryV2 The address of the factory v2.2
+     */
+    function getFactoryV2_2() external view override returns (ILBFactory factoryV2) {
+        return _FACTORY_V2_2;
     }
 
     /**
@@ -653,7 +672,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
         if (dfType == DataFeedType.V1) {
             (,, dfPrice,) = _getPriceFromV1(dataFeed.dfAddress, token);
-        } else if (dfType == DataFeedType.V2 || dfType == DataFeedType.V2_1) {
+        } else if (dfType == DataFeedType.V2 || dfType == DataFeedType.V2_1 || dfType == DataFeedType.V2_2) {
             (,, dfPrice,) = _getPriceFromLb(dataFeed.dfAddress, dfType, token);
         } else if (dfType == DataFeedType.CHAINLINK) {
             dfPrice = _getPriceFromChainlink(dataFeed.dfAddress);
@@ -796,7 +815,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         view
         returns (address tokenA, address tokenB)
     {
-        if (dfType == DataFeedType.V2_1) {
+        if (dfType == DataFeedType.V2_1 || dfType == DataFeedType.V2_2) {
             tokenA = address(ILBPair(pair).getTokenX());
             tokenB = address(ILBPair(pair).getTokenY());
         } else if (dfType == DataFeedType.V2) {
@@ -828,7 +847,7 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
             activeId = uint24(aId);
 
             binStep = uint16(ILBLegacyPair(pair).feeParameters().binStep);
-        } else if (dfType == DataFeedType.V2_1) {
+        } else if (dfType == DataFeedType.V2_1 || dfType == DataFeedType.V2_2) {
             activeId = ILBPair(pair).getActiveId();
             binStep = ILBPair(pair).getBinStep();
         } else {
@@ -855,17 +874,21 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
                 address trustedToken = trustedTokens[j];
 
                 if (trustedToken != token) {
-                    (uint256 weightedPriceV2_1, uint256 totalWeightV2_1) = _v2_1FallbackPrice(token, trustedToken);
-                    (uint256 weightedPriceV2, uint256 totalWeightV2) = _v2FallbackPrice(token, trustedToken);
-                    (uint256 weightedPriceV1, uint256 totalWeightV1) = _v1FallbackPrice(token, trustedToken);
+                    (uint256 weightedPrice, uint256 totalWeight) = _v2_2FallbackPrice(token, trustedToken);
 
-                    uint256 totalWeight = totalWeightV2_1 + totalWeightV2 + totalWeightV1;
+                    (uint256 wp, uint256 w) = _v2_1FallbackPrice(token, trustedToken);
+                    (weightedPrice, totalWeight) = (weightedPrice + wp, totalWeight + w);
+
+                    (wp, w) = _v2FallbackPrice(token, trustedToken);
+                    (weightedPrice, totalWeight) = (weightedPrice + wp, totalWeight + w);
+
+                    (wp, w) = _v1FallbackPrice(token, trustedToken);
+                    (weightedPrice, totalWeight) = (weightedPrice + wp, totalWeight + w);
 
                     if (totalWeight != 0) {
-                        uint256 pairPrice = (weightedPriceV2_1 + weightedPriceV2 + weightedPriceV1);
                         uint256 trustedTokenPrice = _getTokenWeightedAverageNativePrice(trustedToken);
 
-                        price += pairPrice * trustedTokenPrice / _WNATIVE_PRECISION;
+                        price += weightedPrice * trustedTokenPrice / _WNATIVE_PRECISION;
                         weight += totalWeight;
                     }
                 }
@@ -885,18 +908,6 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
         }
 
         return 0;
-
-        // // First check the token price on v2.1
-        // (uint256 weightedPriceV2_1, uint256 totalWeightV2_1) = _v2_1FallbackPrice(token);
-
-        // // Then on v2
-        // (uint256 weightedPriceV2, uint256 totalWeightV2) = _v2FallbackPrice(token);
-
-        // // Then on v1
-        // (uint256 weightedPriceV1, uint256 totalWeightV1) = _v1FallbackPrice(token);
-
-        // uint256 totalWeight = totalWeightV2_1 + totalWeightV2 + totalWeightV1;
-        // return totalWeight == 0 ? 0 : (weightedPriceV2_1 + weightedPriceV2 + weightedPriceV1) / totalWeight;
     }
 
     /**
@@ -923,6 +934,39 @@ contract JoeDexLens is SafeAccessControlEnumerable, IJoeDexLens {
 
                 (uint24 activeId, uint16 binStep, uint256 price, bool isTokenX) =
                     _getPriceFromLb(lbPair, DataFeedType.V2_1, token);
+
+                uint256 scaledReserves = _getLbBinReserves(lbPair, activeId, binStep, isTokenX);
+
+                weightedPrice += price * scaledReserves;
+                totalWeight += scaledReserves;
+            }
+        }
+    }
+
+    /**
+     * @notice Loops through all the collateral/token v2.2 pairs and returns the price of the token if a valid one was found
+     * @param token The address of the token
+     * @param collateral The address of the collateral
+     * @return weightedPrice The weighted price, based on the paired collateral's liquidity,
+     * of the token with the collateral's decimals
+     * @return totalWeight The total weight of the pairs
+     */
+    function _v2_2FallbackPrice(address token, address collateral)
+        private
+        view
+        returns (uint256 weightedPrice, uint256 totalWeight)
+    {
+        if (address(_FACTORY_V2_2) == address(0)) return (0, 0);
+
+        ILBFactory.LBPairInformation[] memory lbPairsAvailable =
+            _FACTORY_V2_2.getAllLBPairs(IERC20(collateral), IERC20(token));
+
+        if (lbPairsAvailable.length != 0) {
+            for (uint256 i = 0; i < lbPairsAvailable.length; i++) {
+                address lbPair = address(lbPairsAvailable[i].LBPair);
+
+                (uint24 activeId, uint16 binStep, uint256 price, bool isTokenX) =
+                    _getPriceFromLb(lbPair, DataFeedType.V2_2, token);
 
                 uint256 scaledReserves = _getLbBinReserves(lbPair, activeId, binStep, isTokenX);
 
