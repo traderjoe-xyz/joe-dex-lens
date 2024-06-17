@@ -25,7 +25,6 @@ interface IJoeDexLens is ISafeAccessControlEnumerable {
     error JoeDexLens__V1ContractNotSet();
     error JoeDexLens__V2ContractNotSet();
     error JoeDexLens__V2_1ContractNotSet();
-    error JoeDexLens__V2_2ContractNotSet();
     error JoeDexLens__AlreadyInitialized();
     error JoeDexLens__InvalidDataFeed();
     error JoeDexLens__ZeroAddress();
@@ -41,7 +40,6 @@ interface IJoeDexLens is ISafeAccessControlEnumerable {
         V1,
         V2,
         V2_1,
-        V2_2,
         CHAINLINK
     }
 
@@ -89,8 +87,6 @@ interface IJoeDexLens is ISafeAccessControlEnumerable {
     function getLegacyFactoryV2() external view returns (ILBLegacyFactory legacyFactoryV2);
 
     function getFactoryV2_1() external view returns (ILBFactory factoryV2);
-
-    function getFactoryV2_2() external view returns (ILBFactory factoryV2_2);
 
     function getDataFeeds(address token) external view returns (DataFeed[] memory dataFeeds);
 
